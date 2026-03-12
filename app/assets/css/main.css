@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@layer components {
+  .sidebar-slide-enter-active,
+  .sidebar-slide-leave-active {
+    transition: all 0.3s ease;
+  }
+  .sidebar-slide-enter-from,
+  .sidebar-slide-leave-to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
