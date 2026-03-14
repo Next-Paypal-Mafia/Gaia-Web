@@ -1,0 +1,7 @@
+- Add forgot password page and button on login popup page
+- Implement Dashboard
+- Make Search popup larger 
+- For vault page make it have vault panel view at the top and chat at the bottom
+- Implement authentication page
+- Implment workflow page
+- Change favicon

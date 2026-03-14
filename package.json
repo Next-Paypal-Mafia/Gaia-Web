@@ -3,30 +3,21 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "dev": "nuxt dev --open",
     "build": "nuxt build",
-    "dev": "nuxt dev",
-    "dev:chrome": "bash scripts/start-chrome.sh",
-    "dev:all": "concurrently --names chrome,nuxt --prefix-colors blue,green \"bun run dev:chrome\" \"sleep 2 && bun run dev\"",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@ai-sdk/google": "^3.0.43",
-    "@ai-sdk/vue": "^3.0.116",
     "@nuxt/ui": "^4.5.1",
     "@nuxtjs/supabase": "^2.0.4",
-    "@openrouter/ai-sdk-provider": "^2.3.0",
-    "ai": "^6.0.116",
     "nuxt": "^4.3.1",
     "tailwindcss": "^4.2.1",
     "vue": "^3.5.30",
-    "vue-router": "^4.6.4",
-    "ws": "^8.19.0",
-    "zod": "^4.3.6"
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.1",
-    "concurrently": "^9.2.1"
+    "@tailwindcss/vite": "^4.2.1"
   }
 }

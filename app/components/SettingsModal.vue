@@ -2,63 +2,8 @@
 const open = defineModel<boolean>('open', { required: true })
 const settings = useSettings()
 
-type Page = 'main' | 'provider' | 'login' | 'signup'
+type Page = 'main' | 'login' | 'signup'
 const currentPage = ref<Page>('main')
-const geminiKeyDraft = ref('')
-const openRouterKeyDraft = ref('')
-const showKey = ref(false)
-const showOpenRouterKey = ref(false)
-const modelDraft = ref('')
-const modelSearchTerm = ref('')
-
-function fuzzyMatch(text: string, query: string): boolean {
-  if (!query.trim()) return true
-  const t = text.toLowerCase()
-  const q = query.toLowerCase().trim()
-  let ti = 0
-  for (let qi = 0; qi < q.length; qi++) {
-    const idx = t.indexOf(q[qi], ti)
-    if (idx === -1) return false
-    ti = idx + 1
-  }
-  return true
-}
-
-const GEMINI_MODELS = [
-  { value: 'gemini:gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'gemini:gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-  { value: 'gemini:gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { value: 'gemini:gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { value: 'gemini:gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-]
-
-const openRouterModels = ref<Array<{ id: string; name: string }>>([])
-const openRouterModelsLoading = ref(false)
-
-const availableModelItems = computed(() => {
-  const items: Array<{ value: string; label: string }> = []
-  if (geminiKeyDraft.value.trim()) {
-    items.push(...GEMINI_MODELS)
-  }
-  if (openRouterKeyDraft.value.trim() && openRouterModels.value.length > 0) {
-    openRouterModels.value.forEach((m) => {
-      items.push({
-        value: `openrouter:${m.id}`,
-        label: `OpenRouter: ${m.name}`,
-      })
-    })
-  }
-  return items
-})
-
-const hasAnyKey = computed(() => geminiKeyDraft.value.trim().length > 0 || openRouterKeyDraft.value.trim().length > 0)
-
-const filteredModelItems = computed(() => {
-  const items = availableModelItems.value
-  const term = modelSearchTerm.value
-  if (!term.trim()) return items
-  return items.filter((item) => fuzzyMatch(item.label, term))
-})
 
 const loginEmail = ref('')
 const loginPassword = ref('')
@@ -81,33 +26,6 @@ const initials = computed(() => {
     .toUpperCase()
 })
 
-const isKeyConfigured = computed(
-  () => settings.geminiApiKey.value.length > 0 || settings.openRouterApiKey.value.length > 0
-)
-
-async function fetchOpenRouterModels() {
-  if (!openRouterKeyDraft.value.trim()) {
-    openRouterModels.value = []
-    return
-  }
-  openRouterModelsLoading.value = true
-  try {
-    const { data } = await $fetch<{ data: Array<{ id: string; name: string }> }>(
-      '/api/models/openrouter',
-      {
-        headers: {
-          'x-openrouter-api-key': openRouterKeyDraft.value.trim(),
-        },
-      }
-    )
-    openRouterModels.value = data || []
-  } catch {
-    openRouterModels.value = []
-  } finally {
-    openRouterModelsLoading.value = false
-  }
-}
-
 watch(open, async (val) => {
   if (val) {
     const supabase = useSupabaseClient()
@@ -118,36 +36,11 @@ watch(open, async (val) => {
       settings.profilePicture.value = (meta.avatar_url as string) || (meta.picture as string) || ''
       settings.isLoggedIn.value = true
     }
-    geminiKeyDraft.value = settings.geminiApiKey.value
-    openRouterKeyDraft.value = settings.openRouterApiKey.value
-    modelDraft.value = settings.selectedModel.value
-    modelSearchTerm.value = ''
-    showKey.value = false
-    showOpenRouterKey.value = false
-    if (openRouterKeyDraft.value.trim()) {
-      fetchOpenRouterModels()
-    } else {
-      openRouterModels.value = []
-    }
   } else {
     setTimeout(() => {
       currentPage.value = 'main'
       resetAuthForms()
     }, 250)
-  }
-})
-
-watch(openRouterKeyDraft, () => {
-  if (openRouterKeyDraft.value.trim()) {
-    fetchOpenRouterModels()
-  } else {
-    openRouterModels.value = []
-  }
-})
-
-watch(availableModelItems, (items) => {
-  if (items.length > 0 && !items.some((i) => i.value === modelDraft.value)) {
-    modelDraft.value = items[0].value
   }
 })
 
@@ -163,17 +56,6 @@ function resetAuthForms() {
   signupLoading.value = false
 }
 
-function openProvider() {
-  geminiKeyDraft.value = settings.geminiApiKey.value
-  openRouterKeyDraft.value = settings.openRouterApiKey.value
-  modelDraft.value = settings.selectedModel.value
-  modelSearchTerm.value = ''
-  currentPage.value = 'provider'
-  if (openRouterKeyDraft.value.trim()) {
-    fetchOpenRouterModels()
-  }
-}
-
 function openLogin() {
   resetAuthForms()
   currentPage.value = 'login'
@@ -182,13 +64,6 @@ function openLogin() {
 function openSignup() {
   resetAuthForms()
   currentPage.value = 'signup'
-}
-
-function saveAndBack() {
-  settings.geminiApiKey.value = geminiKeyDraft.value.trim()
-  settings.openRouterApiKey.value = openRouterKeyDraft.value.trim()
-  settings.selectedModel.value = modelDraft.value
-  currentPage.value = 'main'
 }
 
 function handleLogin() {
@@ -347,20 +222,6 @@ async function handleLogout() {
                     <span class="text-sm text-dimmed">Free Plan</span>
                   </div>
 
-                  <!-- Provider row -->
-                  <button
-                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--ui-bg-muted)] transition-colors"
-                    @click="openProvider"
-                  >
-                    <div class="flex items-center gap-3">
-                      <UIcon name="i-lucide-cpu" class="size-4 text-muted shrink-0" />
-                      <span class="text-sm text-default">Provider</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                      <span class="text-sm text-dimmed">{{ isKeyConfigured ? 'Configured' : 'Not set' }}</span>
-                      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
-                    </div>
-                  </button>
                 </div>
               </div>
 
@@ -381,135 +242,6 @@ async function handleLogout() {
           </div>
         </Transition>
 
-        <!-- PROVIDER PAGE -->
-        <Transition name="slide-right">
-          <div v-if="currentPage === 'provider'" class="flex flex-col max-h-[80vh] overflow-y-auto">
-            <!-- Header: circular back + centered title + pill Save -->
-            <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
-              <button
-                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
-                @click="saveAndBack"
-              >
-                <UIcon name="i-lucide-chevron-left" class="size-[18px]" />
-              </button>
-              <span class="font-bold text-base text-default">Provider</span>
-              <button
-                class="px-4 h-9 rounded-full bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
-                @click="saveAndBack"
-              >
-                Save
-              </button>
-            </div>
-
-            <!-- Model selection (at top) -->
-            <div class="px-4 pb-4">
-              <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">Model</p>
-              <div class="bg-elevated rounded-xl overflow-hidden">
-                <div class="px-4 py-3">
-                  <UInputMenu
-                    v-model="modelDraft"
-                    v-model:search-term="modelSearchTerm"
-                    :items="filteredModelItems"
-                    placeholder="Search models..."
-                    value-key="value"
-                    label-key="label"
-                    :loading="openRouterModelsLoading && openRouterKeyDraft.trim().length > 0"
-                    :disabled="!hasAnyKey"
-                    ignore-filter
-                    open-on-click
-                    open-on-focus
-                    :content="{ viewport: 'max-h-60 overflow-y-auto' }"
-                    class="w-full"
-                  />
-                </div>
-              </div>
-              <p class="text-xs text-dimmed mt-2 px-1">
-                {{ hasAnyKey ? 'Type to search, scroll to select. Add API keys below for more models.' : 'Add an API key below to load available models.' }}
-              </p>
-            </div>
-
-            <!-- Gemini API Key section -->
-            <div class="px-4 pb-4">
-              <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">Gemini API Key</p>
-              <div class="bg-elevated rounded-xl overflow-hidden group/api-key">
-                <div class="px-4 py-3">
-                  <UInput
-                    v-model="geminiKeyDraft"
-                    :type="showKey ? 'text' : 'password'"
-                    placeholder="AIza..."
-                    class="w-full"
-                    autocomplete="off"
-                    spellcheck="false"
-                    :ui="{ trailing: 'pe-1' }"
-                  >
-                    <template #trailing>
-                      <UButton
-                        :icon="showKey ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                        variant="link"
-                        color="neutral"
-                        size="sm"
-                        class="opacity-0 group-hover/api-key:opacity-40 hover:!opacity-70 transition-opacity"
-                        :aria-label="showKey ? 'Hide API key' : 'Show API key'"
-                        @click="showKey = !showKey"
-                      />
-                    </template>
-                  </UInput>
-                </div>
-              </div>
-              <p class="text-xs text-dimmed mt-2 px-1">
-                Get your key from
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-primary hover:underline"
-                >Google AI Studio</a>.
-                It overrides any server-side environment variable.
-              </p>
-            </div>
-
-            <!-- OpenRouter API Key section -->
-            <div class="px-4 pb-6">
-              <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">OpenRouter API Key</p>
-              <div class="bg-elevated rounded-xl overflow-hidden group/openrouter-key">
-                <div class="px-4 py-3">
-                  <UInput
-                    v-model="openRouterKeyDraft"
-                    :type="showOpenRouterKey ? 'text' : 'password'"
-                    placeholder="sk-or-..."
-                    class="w-full"
-                    autocomplete="off"
-                    spellcheck="false"
-                    :ui="{ trailing: 'pe-1' }"
-                  >
-                    <template #trailing>
-                      <UButton
-                        :icon="showOpenRouterKey ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                        variant="link"
-                        color="neutral"
-                        size="sm"
-                        class="opacity-0 group-hover/openrouter-key:opacity-40 hover:!opacity-70 transition-opacity"
-                        :aria-label="showOpenRouterKey ? 'Hide API key' : 'Show API key'"
-                        @click="showOpenRouterKey = !showOpenRouterKey"
-                      />
-                    </template>
-                  </UInput>
-                </div>
-              </div>
-              <p class="text-xs text-dimmed mt-2 px-1">
-                Get your key from
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-primary hover:underline"
-                >OpenRouter</a>.
-                Access 300+ models through a single API.
-              </p>
-            </div>
-          </div>
-        </Transition>
-
         <!-- LOGIN PAGE -->
         <Transition name="slide-right">
           <div v-if="currentPage === 'login'" class="flex flex-col max-h-[80vh] overflow-y-auto">
@@ -525,27 +257,6 @@ async function handleLogout() {
             </div>
 
             <div class="px-6 pb-6 pt-2 space-y-4">
-              <!-- Google auth -->
-              <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
-                :disabled="loginLoading"
-                @click="handleGoogleLogin"
-              >
-                <svg class="size-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Continue with Google
-              </button>
-
-              <div class="flex items-center gap-3">
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
-                <span class="text-xs text-dimmed">or</span>
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
-              </div>
-
               <!-- Email + password -->
               <div class="space-y-3">
                 <div>
@@ -593,6 +304,27 @@ async function handleLogout() {
                 {{ loginLoading ? 'Logging in...' : 'Log in' }}
               </button>
 
+              <div class="flex items-center gap-3">
+                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <span class="text-xs text-dimmed">or</span>
+                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+              </div>
+
+              <!-- Google auth -->
+              <button
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
+                :disabled="loginLoading"
+                @click="handleGoogleLogin"
+              >
+                <svg class="size-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Continue with Google
+              </button>
+
               <p class="text-center text-xs text-dimmed">
                 Don't have an account?
                 <button class="text-primary hover:underline font-medium" @click="openSignup">
@@ -618,27 +350,6 @@ async function handleLogout() {
             </div>
 
             <div class="px-6 pb-6 pt-2 space-y-4">
-              <!-- Google auth -->
-              <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
-                :disabled="signupLoading"
-                @click="handleGoogleLogin"
-              >
-                <svg class="size-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Continue with Google
-              </button>
-
-              <div class="flex items-center gap-3">
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
-                <span class="text-xs text-dimmed">or</span>
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
-              </div>
-
               <!-- Email + password + confirm -->
               <div class="space-y-3">
                 <div>
@@ -714,6 +425,27 @@ async function handleLogout() {
                 @click="handleSignup"
               >
                 {{ signupLoading ? 'Creating account...' : 'Create account' }}
+              </button>
+
+              <div class="flex items-center gap-3">
+                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <span class="text-xs text-dimmed">or</span>
+                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+              </div>
+
+              <!-- Google auth -->
+              <button
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
+                :disabled="signupLoading"
+                @click="handleGoogleLogin"
+              >
+                <svg class="size-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Continue with Google
               </button>
 
               <p class="text-center text-xs text-dimmed">

@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { UIMessage } from 'ai'
+interface UIMessage {
+  id: string
+  role: 'user' | 'assistant'
+  parts: Array<Record<string, any>>
+}
 
 const props = defineProps<{
   messages: UIMessage[]
@@ -70,6 +74,10 @@ const TOOL_META: Record<string, { label: string; icon: string }> = {
   scroll: { label: 'Scrolling', icon: 'i-lucide-arrow-down-up' },
   getPageState: { label: 'Reading page', icon: 'i-lucide-scan-eye' },
   waitForLoad: { label: 'Waiting for load', icon: 'i-lucide-timer' },
+  playwright_browser_navigate: { label: 'Navigating', icon: 'i-lucide-compass' },
+  playwright_browser_click: { label: 'Clicking', icon: 'i-lucide-mouse-pointer-click' },
+  playwright_browser_type: { label: 'Typing', icon: 'i-lucide-keyboard' },
+  playwright_browser_snapshot: { label: 'Reading page', icon: 'i-lucide-scan-eye' },
 }
 
 function toolLabel(name: string) {
@@ -82,12 +90,12 @@ function toolIcon(name: string) {
 
 function toolDetail(name: string, input: any): string {
   if (!input) return ''
-  if (name === 'navigate') return input.url ?? ''
+  if (name === 'navigate' || name === 'playwright_browser_navigate') return input.url ?? ''
   if (name === 'clickElement') return input.description ?? ''
-  if (name === 'typeText') return `"${input.text}"`
+  if (name === 'typeText' || name === 'playwright_browser_type') return `"${input.text ?? input.selector}"`
   if (name === 'pressKey') return input.key ?? ''
   if (name === 'scroll') return input.direction ?? ''
-  if (name === 'clickCoordinates') return `(${input.x}, ${input.y})`
+  if (name === 'clickCoordinates' || name === 'playwright_browser_click') return input.selector ?? `(${input.x}, ${input.y})`
   return ''
 }
 </script>

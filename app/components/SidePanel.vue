@@ -6,27 +6,29 @@ interface ChatHistoryItem {
   title: string
 }
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   chatHistory: ChatHistoryItem[]
   activeChatId: string
-  vaultOpen?: boolean
+  activeView: 'dashboard' | 'vault' | 'authentications' | null
+  activeWorkflowId: string | null
 }>()
 
 const emit = defineEmits<{
   toggle: []
   newChat: []
   selectChat: [id: string]
-  selectWorkflow: [id: string]
+  selectWorkflow: [id: string, title: string]
+  selectView: [view: 'dashboard' | 'newchat' | 'search' | 'vault' | 'authentications']
   renameChat: [id: string, title: string]
   deleteChat: [id: string]
-  vault: []
 }>()
 
 const settingsOpen = ref(false)
 const searchOpen = ref(false)
 const settings = useSettings()
 
+// ── Rename chat ───────────────────────────────────────────────────────────────
 const renamingChatId = ref<string | null>(null)
 const renameInput = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
@@ -76,6 +78,7 @@ function getChatMenuItems(chat: ChatHistoryItem): DropdownMenuItem[] {
   ]
 }
 
+// ── Workflows ─────────────────────────────────────────────────────────────────
 const workflows = ref([
   { id: 'wf-1', title: 'Daily standup summary' },
   { id: 'wf-2', title: 'Code review checklist' },
@@ -98,8 +101,9 @@ function startWorkflowRename(id: string, currentTitle: string) {
 function confirmWorkflowRename() {
   if (renamingWorkflowId.value && renameWorkflowInput.value.trim()) {
     const idx = workflows.value.findIndex(w => w.id === renamingWorkflowId.value)
-    if (idx !== -1) {
-      workflows.value[idx].title = renameWorkflowInput.value.trim()
+    const wf = workflows.value[idx]
+    if (idx !== -1 && wf) {
+      wf.title = renameWorkflowInput.value.trim()
     }
   }
   renamingWorkflowId.value = null
@@ -144,12 +148,14 @@ function getWorkflowMenuItems(workflow: { id: string, title: string }): Dropdown
 const workflowsSectionRef = ref<HTMLElement | null>(null)
 
 function onSelectWorkflow(id: string) {
-  emit('selectWorkflow', id)
+  const workflow = workflows.value.find(w => w.id === id)
+  emit('selectWorkflow', id, workflow?.title ?? '')
   nextTick(() => {
     workflowsSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   })
 }
 
+// ── Profile ───────────────────────────────────────────────────────────────────
 const initials = computed(() => {
   const name = settings.username.value.trim() || 'U'
   return name
@@ -159,6 +165,19 @@ const initials = computed(() => {
     .substring(0, 2)
     .toUpperCase()
 })
+
+// ── Nav button helpers ────────────────────────────────────────────────────────
+function isNavActive(view: 'dashboard' | 'vault' | 'authentications') {
+  return props.activeView === view
+}
+
+function isSearchActive() {
+  return searchOpen.value
+}
+
+function isNewChatActive() {
+  return false // New Chat is an action, never stays "active"
+}
 </script>
 
 <template>
@@ -167,8 +186,8 @@ const initials = computed(() => {
     :class="open ? 'w-[280px] min-w-[280px] opacity-100' : 'w-0 min-w-0 opacity-0 m-0'"
   >
     <div v-show="open" class="flex flex-col h-full w-[280px]">
-      <!-- Header -->
-      <div class="flex items-center justify-between px-4 pt-4 pb-4">
+      <!-- Header — py-2.5 matches the browser bar height -->
+      <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-earth" class="size-5 text-primary" />
           <span class="font-bold text-sm tracking-tight">Gaia</span>
@@ -182,49 +201,73 @@ const initials = computed(() => {
         />
       </div>
 
-      <!-- Sections -->
+      <!-- Nav sections -->
       <div class="flex flex-col gap-0.5 px-2">
+        <!-- Dashboard -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default hover:bg-default/60 transition-colors text-left"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
+          :class="isNavActive('dashboard') ? 'bg-default/80' : 'hover:bg-default/60'"
+          @click="emit('selectView', 'dashboard')"
         >
-          <UIcon name="i-lucide-layout-dashboard" class="size-4 text-muted" />
+          <UIcon
+            name="i-lucide-layout-dashboard"
+            class="size-4 shrink-0 transition-colors"
+            :class="isNavActive('dashboard') ? 'text-primary' : 'text-muted'"
+          />
           <span>Dashboard</span>
         </button>
+
+        <!-- New Chat -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default hover:bg-default/60 transition-colors text-left"
           @click="emit('newChat')"
         >
-          <UIcon name="i-lucide-square-pen" class="size-4 text-muted" />
+          <UIcon
+            name="i-lucide-square-pen"
+            class="size-4 shrink-0 text-muted"
+          />
           <span>New Chat</span>
         </button>
+
+        <!-- Search -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left"
-          :class="searchOpen ? 'bg-default/80 text-default' : 'text-muted hover:bg-default/60 hover:text-default'"
-          @click="searchOpen = true"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
+          :class="isSearchActive() ? 'bg-default/80' : 'hover:bg-default/60'"
+          @click="emit('selectView', 'search'); searchOpen = true"
         >
           <UIcon
             name="i-lucide-search"
-            class="size-4 shrink-0"
-            :class="searchOpen ? 'text-primary' : 'text-muted'"
+            class="size-4 shrink-0 transition-colors"
+            :class="isSearchActive() ? 'text-primary' : 'text-muted'"
           />
           <span>Search</span>
         </button>
+
+        <!-- Vault -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left"
-          :class="vaultOpen ? 'bg-default/80 text-default' : 'text-muted hover:bg-default/60 hover:text-default'"
-          @click="emit('vault')"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
+          :class="isNavActive('vault') ? 'bg-default/80' : 'hover:bg-default/60'"
+          @click="emit('selectView', 'vault')"
         >
           <UIcon
             name="i-lucide-archive"
-            class="size-4 shrink-0"
-            :class="vaultOpen ? 'text-primary' : 'text-muted'"
+            class="size-4 shrink-0 transition-colors"
+            :class="isNavActive('vault') ? 'text-primary' : 'text-muted'"
           />
           <span>Vault</span>
         </button>
+
+        <!-- Authentications -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default hover:bg-default/60 transition-colors text-left"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
+          :class="isNavActive('authentications') ? 'bg-default/80' : 'hover:bg-default/60'"
+          @click="emit('selectView', 'authentications')"
         >
-          <UIcon name="i-lucide-key-round" class="size-4 text-muted" />
+          <UIcon
+            name="i-lucide-key-round"
+            class="size-4 shrink-0 transition-colors"
+            :class="isNavActive('authentications') ? 'text-primary' : 'text-muted'"
+          />
           <span>Authentications</span>
         </button>
       </div>
@@ -237,7 +280,9 @@ const initials = computed(() => {
             v-for="chat in chatHistory"
             :key="chat.id"
             class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
-            :class="chat.id === activeChatId && !vaultOpen ? 'bg-default/80 text-default' : 'text-muted hover:bg-default/40 hover:text-default'"
+            :class="chat.id === activeChatId && activeView === null && activeWorkflowId === null
+              ? 'bg-default/80 text-default'
+              : 'text-muted hover:bg-default/40 hover:text-default'"
             @click="emit('selectChat', chat.id)"
           >
             <input
@@ -275,7 +320,11 @@ const initials = computed(() => {
           <div
             v-for="workflow in workflows"
             :key="workflow.id"
-            class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-muted hover:bg-default/40 hover:text-default"
+            class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
+            :class="workflow.id === activeWorkflowId
+              ? 'bg-default/80 text-default'
+              : 'text-muted hover:bg-default/40 hover:text-default'"
+            @click="onSelectWorkflow(workflow.id)"
           >
             <input
               v-if="renamingWorkflowId === workflow.id"
@@ -339,7 +388,7 @@ const initials = computed(() => {
         :workflows="workflows"
         :active-chat-id="activeChatId"
         @select-chat="emit('selectChat', $event)"
-        @select-workflow="onSelectWorkflow"
+        @select-workflow="(id) => onSelectWorkflow(id)"
       />
     </div>
   </aside>
