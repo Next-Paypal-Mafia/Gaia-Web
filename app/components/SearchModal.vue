@@ -72,14 +72,15 @@ watch(open, (val) => {
   <UModal
     v-model:open="open"
     :ui="{
-      content: 'max-w-[380px] overflow-hidden',
+      overlay: 'backdrop-blur-sm bg-black/50',
+      content: 'max-w-lg overflow-hidden',
       body: 'p-0 sm:p-0',
       header: 'hidden',
       footer: 'hidden',
     }"
   >
     <template #body>
-      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-elevated">
+      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-default/95">
         <!-- Header: search input + close -->
         <div class="flex items-center gap-2 px-4 pt-4 pb-3 shrink-0">
           <UInput

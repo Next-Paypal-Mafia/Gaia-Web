@@ -178,21 +178,25 @@ function toolDetail(name: string, input: any): string {
       <!-- Thinking indicator when waiting for first response -->
       <div
         v-if="(status === 'submitted' || status === 'streaming') && !messages.some(m => m.role === 'assistant')"
-        class="flex items-center gap-2 text-xs text-muted pl-1"
+        class="flex items-center gap-2.5 text-xs text-muted pl-1 py-1"
       >
-        <UIcon name="i-lucide-loader-2" class="size-3.5 animate-spin" />
-        <span>Gaia is thinking&hellip;</span>
+        <div class="size-5 rounded-md bg-primary/10 flex items-center justify-center">
+          <UIcon name="i-lucide-loader-2" class="size-3 text-primary animate-spin" />
+        </div>
+        <span class="text-dimmed">Gaia is thinking&hellip;</span>
       </div>
 
       <!-- Empty state -->
       <div
         v-if="!messages.length && status === 'ready'"
-        class="flex flex-col items-center justify-center h-full text-muted gap-3"
+        class="flex flex-col items-center justify-center h-full text-muted gap-4"
       >
-        <UIcon name="i-lucide-earth" class="size-10 text-primary/40" />
-        <div class="text-center">
+        <div class="size-11 rounded-xl bg-primary/10 flex items-center justify-center">
+          <UIcon name="i-lucide-earth" class="size-6 text-primary" />
+        </div>
+        <div class="text-center space-y-1">
           <p class="text-sm font-medium text-default">What can I browse for you?</p>
-          <p class="text-xs mt-1">Describe a task and Gaia will handle the rest.</p>
+          <p class="text-xs text-dimmed">Describe a task and Gaia will handle the rest.</p>
         </div>
       </div>
     </div>

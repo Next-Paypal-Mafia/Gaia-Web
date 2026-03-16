@@ -262,18 +262,33 @@ export function useOpenCodeAgent() {
 
   async function sendInstruction(text: string): Promise<void> {
     if (!text.trim()) return
-    if (!sessionId.value) {
-      console.error('[useOpenCodeAgent] No active session — call connect() first')
-      return
-    }
-
-    // Append user message optimistically
+    // Append user message optimistically (even if backend isn't connected yet)
     const userMsg: UIMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       parts: [{ type: 'text', text: text.trim() }],
     }
     messages.value = [...messages.value, userMsg]
+
+    if (!sessionId.value) {
+      console.error('[useOpenCodeAgent] No active session — call connect() first')
+      messages.value = [
+        ...messages.value,
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: 'I can’t run the browser agent yet because the backend session is not connected. Please configure `NUXT_PUBLIC_AGENT_API_URL` and ensure the agent server is running.',
+            },
+          ],
+        },
+      ]
+      isAgentRunning.value = false
+      status.value = 'error'
+      return
+    }
 
     isAgentRunning.value = true
     status.value = 'submitted'
