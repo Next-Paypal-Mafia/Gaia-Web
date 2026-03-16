@@ -4,19 +4,270 @@ export interface UIMessage {
   parts: Array<Record<string, any>>
 }
 
+// Tracks active assistant message parts indexed by messageID
+interface AssistantBuffer {
+  messageID: string
+  uiId: string
+  parts: Array<Record<string, any>>
+}
+
 export function useOpenCodeAgent() {
   const messages = shallowRef<UIMessage[]>([])
   const isAgentRunning = ref(false)
   const status = ref<'ready' | 'submitted' | 'streaming' | 'error'>('ready')
+  const sessionId = ref<string | null>(null)
 
-  // TODO: Connect to remote API (replace with real implementation)
-  async function connect(url: string) {
-    // stub — wire up to the new remote API
+  // Internal state — not exposed
+  let _baseUrl = ''
+  let _token: string | undefined
+  let _eventSource: EventSource | null = null
+  let _assistantBuffer: AssistantBuffer | null = null
+  // Holds the internal opencode session ID returned by the server
+  // (different from the Gaia sessionId UUID)
+
+  // ── SSE event processing ───────────────────────────────────────────────────
+
+  function _handleSSEEvent(raw: string) {
+    let evt: { type: string; properties?: Record<string, any> }
+    try {
+      evt = JSON.parse(raw)
+    }
+    catch {
+      return
+    }
+
+    const { type, properties } = evt
+
+    if (type === 'server.connected') {
+      // Initial handshake — connection is up
+      return
+    }
+
+    if (type === 'message.part.updated' && properties) {
+      _handlePartUpdated(properties)
+      return
+    }
+
+    if (type === 'session.idle') {
+      _finaliseAssistantMessage()
+      isAgentRunning.value = false
+      status.value = 'ready'
+      return
+    }
+
+    if (type === 'session.error') {
+      _finaliseAssistantMessage()
+      isAgentRunning.value = false
+      status.value = 'error'
+      return
+    }
+  }
+
+  function _handlePartUpdated(properties: Record<string, any>) {
+    const { messageID, part } = properties as {
+      messageID: string
+      part: Record<string, any>
+    }
+
+    if (!part || !messageID) return
+
+    // First part received — transition to streaming
+    if (status.value === 'submitted') {
+      status.value = 'streaming'
+    }
+
+    // If messageID changed, finalise the previous buffer and start a new one
+    if (_assistantBuffer && _assistantBuffer.messageID !== messageID) {
+      _finaliseAssistantMessage()
+    }
+
+    // Initialise buffer for this messageID
+    if (!_assistantBuffer) {
+      const uiId = `assistant-${messageID}`
+      _assistantBuffer = { messageID, uiId, parts: [] }
+      // Append a new empty assistant message immediately so the UI can show it
+      messages.value = [
+        ...messages.value,
+        { id: uiId, role: 'assistant', parts: [] },
+      ]
+    }
+
+    // Merge the incoming part into the buffer
+    _mergePart(_assistantBuffer, part)
+
+    // Update the live assistant message in the messages array
+    _flushBuffer()
+  }
+
+  function _mergePart(buffer: AssistantBuffer, part: Record<string, any>) {
+    const partType: string = part.type ?? ''
+
+    if (partType === 'text') {
+      // Find an existing text part and append to it, or add a new one
+      const existing = buffer.parts.find(p => p.type === 'text')
+      if (existing) {
+        existing.text = (existing.text ?? '') + (part.text ?? '')
+      }
+      else {
+        buffer.parts.push({ type: 'text', text: part.text ?? '' })
+      }
+      return
+    }
+
+    if (partType === 'reasoning') {
+      const existing = buffer.parts.find(p => p.type === 'reasoning')
+      if (existing) {
+        existing.text = (existing.text ?? '') + (part.text ?? '')
+      }
+      else {
+        buffer.parts.push({ type: 'reasoning', text: part.text ?? '' })
+      }
+      return
+    }
+
+    if (partType === 'step-start') {
+      buffer.parts.push({ type: 'step-start' })
+      return
+    }
+
+    if (partType === 'tool') {
+      // opencode emits tool parts with a toolName and state
+      // Map to the tool-{name} shape ChatPanel expects
+      const toolName: string = part.toolName ?? part.tool ?? 'unknown'
+      const toolUiType = `tool-${toolName}`
+      const existing = buffer.parts.find(
+        p => p.type === toolUiType && p._toolCallId === part.toolCallId,
+      )
+      if (existing) {
+        // Update state and output as they arrive
+        if (part.state !== undefined) existing.state = part.state
+        if (part.output !== undefined) existing.output = part.output
+        if (part.input !== undefined) existing.input = part.input
+      }
+      else {
+        buffer.parts.push({
+          type: toolUiType,
+          toolName,
+          state: part.state ?? 'in-progress',
+          input: part.input,
+          output: part.output,
+          _toolCallId: part.toolCallId,
+        })
+      }
+      return
+    }
+
+    // Catch-all: include unknown part types as-is
+    buffer.parts.push({ ...part })
+  }
+
+  function _flushBuffer() {
+    if (!_assistantBuffer) return
+    const { uiId, parts } = _assistantBuffer
+    messages.value = messages.value.map(m =>
+      m.id === uiId ? { ...m, parts: [...parts] } : m,
+    )
+  }
+
+  function _finaliseAssistantMessage() {
+    if (_assistantBuffer) {
+      _flushBuffer()
+      _assistantBuffer = null
+    }
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  async function connect(baseUrl: string, token?: string): Promise<void> {
+    _baseUrl = baseUrl.replace(/\/$/, '')
+    _token = token
+
+    // Create a Gaia server session
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const res = await fetch(`${_baseUrl}/sessions`, {
+      method: 'POST',
+      headers,
+    })
+
+    if (!res.ok) {
+      const body = await res.text()
+      console.error('[useOpenCodeAgent] Failed to create session:', res.status, body)
+      status.value = 'error'
+      return
+    }
+
+    const data = await res.json() as { sessionId: string }
+    sessionId.value = data.sessionId
+
+    // Open the SSE stream
+    const sseUrl = new URL(`${_baseUrl}/sessions/${data.sessionId}/event`)
+    if (token) sseUrl.searchParams.set('token', token)
+
+    const es = new EventSource(sseUrl.toString())
+    _eventSource = es
+
+    es.onmessage = (e) => {
+      _handleSSEEvent(e.data)
+    }
+
+    es.onerror = (e) => {
+      console.error('[useOpenCodeAgent] SSE error', e)
+      // Only set error if we were actively running
+      if (isAgentRunning.value) {
+        isAgentRunning.value = false
+        status.value = 'error'
+      }
+    }
+
+    status.value = 'ready'
+  }
+
+  async function disconnect(): Promise<void> {
+    // Close SSE
+    if (_eventSource) {
+      _eventSource.close()
+      _eventSource = null
+    }
+
+    // Delete the server session
+    if (sessionId.value) {
+      const headers: Record<string, string> = {}
+      if (_token) headers['Authorization'] = `Bearer ${_token}`
+
+      try {
+        await fetch(`${_baseUrl}/sessions/${sessionId.value}`, {
+          method: 'DELETE',
+          headers,
+        })
+      }
+      catch (err) {
+        console.warn('[useOpenCodeAgent] Failed to delete session:', err)
+      }
+    }
+
+    // Reset state
+    sessionId.value = null
+    isAgentRunning.value = false
+    status.value = 'ready'
+    _assistantBuffer = null
+    _baseUrl = ''
+    _token = undefined
   }
 
   async function sendInstruction(text: string): Promise<void> {
     if (!text.trim()) return
+    if (!sessionId.value) {
+      console.error('[useOpenCodeAgent] No active session — call connect() first')
+      return
+    }
 
+    // Append user message optimistically
     const userMsg: UIMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -24,10 +275,66 @@ export function useOpenCodeAgent() {
     }
     messages.value = [...messages.value, userMsg]
 
-    // TODO: Send to remote API and stream response back into messages
+    isAgentRunning.value = true
+    status.value = 'submitted'
+    _assistantBuffer = null
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (_token) {
+      headers['Authorization'] = `Bearer ${_token}`
+    }
+
+    try {
+      const res = await fetch(
+        `${_baseUrl}/sessions/${sessionId.value}/message/async`,
+        {
+          method: 'POST',
+          headers,
+          // No model field — server controls the model via opencode.json
+          body: JSON.stringify({
+            parts: [{ type: 'text', text: text.trim() }],
+          }),
+        },
+      )
+
+      if (!res.ok) {
+        const body = await res.text()
+        console.error('[useOpenCodeAgent] Failed to send message:', res.status, body)
+        isAgentRunning.value = false
+        status.value = 'error'
+      }
+      // 204 No Content — response will arrive via SSE
+    }
+    catch (err) {
+      console.error('[useOpenCodeAgent] Network error sending message:', err)
+      isAgentRunning.value = false
+      status.value = 'error'
+    }
   }
 
-  function stop() {
+  async function stop(): Promise<void> {
+    if (!sessionId.value || !isAgentRunning.value) {
+      isAgentRunning.value = false
+      status.value = 'ready'
+      return
+    }
+
+    const headers: Record<string, string> = {}
+    if (_token) headers['Authorization'] = `Bearer ${_token}`
+
+    try {
+      await fetch(`${_baseUrl}/sessions/${sessionId.value}/abort`, {
+        method: 'POST',
+        headers,
+      })
+    }
+    catch (err) {
+      console.warn('[useOpenCodeAgent] Abort request failed:', err)
+    }
+
+    _finaliseAssistantMessage()
     isAgentRunning.value = false
     status.value = 'ready'
   }
@@ -37,7 +344,9 @@ export function useOpenCodeAgent() {
   }
 
   function resetChat(initialMessages: UIMessage[] = []) {
-    stop()
+    _finaliseAssistantMessage()
+    isAgentRunning.value = false
+    status.value = 'ready'
     messages.value = [...initialMessages]
   }
 
@@ -45,7 +354,9 @@ export function useOpenCodeAgent() {
     messages: readonly(messages),
     status: readonly(status),
     isAgentRunning: readonly(isAgentRunning),
+    sessionId: readonly(sessionId),
     connect,
+    disconnect,
     sendInstruction,
     stop,
     getMessages,

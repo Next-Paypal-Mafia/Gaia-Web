@@ -1,8 +1,34 @@
 <script setup lang="ts">
 import type { UIMessage } from '~/composables/useOpenCodeAgent'
 
+const config = useRuntimeConfig()
+const supabase = useSupabaseClient()
 const screencast = useScreencast()
 const agent = useOpenCodeAgent()
+
+onMounted(async () => {
+  const apiUrl = config.public.agentApiUrl
+  if (!apiUrl) {
+    console.warn('[Gaia] NUXT_PUBLIC_AGENT_API_URL is not set — skipping session creation')
+    return
+  }
+
+  // Get the current Supabase JWT (may be null for unauthenticated users)
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  await agent.connect(apiUrl, token)
+
+  // Start the screencast WebSocket once we have a session ID
+  if (agent.sessionId.value) {
+    screencast.start(apiUrl, agent.sessionId.value, token)
+  }
+})
+
+onUnmounted(async () => {
+  screencast.stop()
+  await agent.disconnect()
+})
 
 const sidebarOpen = ref(true)
 const activeView = ref<'dashboard' | 'vault' | 'authentications' | null>(null)

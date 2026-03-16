@@ -5,6 +5,12 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/ui', '@nuxtjs/supabase'],
 
+  runtimeConfig: {
+    public: {
+      agentApiUrl: '',
+    },
+  },
+
   supabase: {
     redirect: false,
   },
