@@ -58,11 +58,12 @@ function toolName(part: any): string {
 }
 
 function isToolDone(part: any): boolean {
-  return part.state === 'output-available'
+  // SDK ToolState.status is 'completed'; guard legacy string shape too
+  return part.state?.status === 'completed' || part.state === 'output-available'
 }
 
 function isToolError(part: any): boolean {
-  return part.state === 'output-error' || part.state === 'output-denied'
+  return part.state?.status === 'error' || part.state === 'output-error' || part.state === 'output-denied'
 }
 
 const TOOL_META: Record<string, { label: string; icon: string }> = {
@@ -88,12 +89,14 @@ function toolIcon(name: string) {
   return TOOL_META[name]?.icon ?? 'i-lucide-wrench'
 }
 
-function toolDetail(name: string, input: any): string {
+function toolDetail(name: string, part: any): string {
+  // SDK shape: state.input holds the input object
+  const input = part?.state?.input ?? part?.input
   if (!input) return ''
   if (name === 'navigate' || name === 'playwright_browser_navigate') return input.url ?? ''
   if (name === 'clickElement') return input.description ?? ''
   if (name === 'typeText' || name === 'playwright_browser_type') return `"${input.text ?? input.selector}"`
-  if (name === 'pressKey') return input.key ?? ''
+  if (name === 'pressKey' || name === 'playwright_browser_press_key') return input.key ?? ''
   if (name === 'scroll') return input.direction ?? ''
   if (name === 'clickCoordinates' || name === 'playwright_browser_click') return input.selector ?? `(${input.x}, ${input.y})`
   return ''
@@ -161,10 +164,10 @@ function toolDetail(name: string, input: any): string {
                   <span class="font-medium text-default">{{ toolLabel(toolName(part)) }}</span>
                 </div>
                 <p
-                  v-if="toolDetail(toolName(part), (part as any).input)"
+                  v-if="toolDetail(toolName(part), part)"
                   class="text-dimmed truncate mt-0.5"
                 >
-                  {{ toolDetail(toolName(part), (part as any).input) }}
+                  {{ toolDetail(toolName(part), part) }}
                 </p>
               </div>
             </div>

@@ -64,12 +64,13 @@ export function useOpenCodeAgent() {
   }
 
   function _handlePartUpdated(properties: Record<string, any>) {
-    const { messageID, part } = properties as {
-      messageID: string
-      part: Record<string, any>
-    }
+    // The SDK shape is: { part: Part }
+    // messageID lives inside part, not at the top level of properties
+    const part = properties.part as Record<string, any> | undefined
+    if (!part) return
 
-    if (!part || !messageID) return
+    const messageID = (part.messageID ?? properties.messageID) as string | undefined
+    if (!messageID) return
 
     // First part received — transition to streaming
     if (status.value === 'submitted') {
@@ -131,27 +132,23 @@ export function useOpenCodeAgent() {
     }
 
     if (partType === 'tool') {
-      // opencode emits tool parts with a toolName and state
-      // Map to the tool-{name} shape ChatPanel expects
-      const toolName: string = part.toolName ?? part.tool ?? 'unknown'
+      // SDK ToolPart shape: { tool: string, callID: string, state: { status, input, output, ... } }
+      const toolName: string = part.tool ?? part.toolName ?? 'unknown'
+      const callID: string = part.callID ?? part.toolCallId ?? part.id ?? ''
       const toolUiType = `tool-${toolName}`
       const existing = buffer.parts.find(
-        p => p.type === toolUiType && p._toolCallId === part.toolCallId,
+        p => p.type === toolUiType && p._callID === callID,
       )
       if (existing) {
-        // Update state and output as they arrive
+        // Merge the whole state object as it arrives
         if (part.state !== undefined) existing.state = part.state
-        if (part.output !== undefined) existing.output = part.output
-        if (part.input !== undefined) existing.input = part.input
       }
       else {
         buffer.parts.push({
           type: toolUiType,
           toolName,
-          state: part.state ?? 'in-progress',
-          input: part.input,
-          output: part.output,
-          _toolCallId: part.toolCallId,
+          state: part.state ?? { status: 'pending', input: {}, raw: '' },
+          _callID: callID,
         })
       }
       return

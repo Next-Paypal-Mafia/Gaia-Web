@@ -220,7 +220,7 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
         >
           <UIcon
             name="i-lucide-square-pen"
-            class="size-4 shrink-0 text-primary"
+            class="size-4 shrink-0 text-muted"
           />
           <span>New Chat</span>
         </button>
