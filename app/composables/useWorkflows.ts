@@ -53,7 +53,10 @@ export function useWorkflows() {
 
   if (!_pinnedIds) {
     const stored = loadJSON<string[] | null>('gaia:pinnedWorkflows', null)
-    _pinnedIds = ref<string[]>(stored?.length ? stored : recentThreeIds(_workflows.value))
+    let initial = stored?.length ? stored : recentThreeIds(_workflows.value)
+    const valid = new Set(_workflows.value.map(w => w.id))
+    initial = initial.filter(id => valid.has(id))
+    _pinnedIds = ref<string[]>(initial)
     if (import.meta.client) {
       watch(_pinnedIds, v => saveJSON('gaia:pinnedWorkflows', v), { deep: true })
     }
@@ -62,12 +65,26 @@ export function useWorkflows() {
   const workflows = _workflows as Ref<WorkflowItem[]>
   const pinnedIds = _pinnedIds as Ref<string[]>
 
+  const workflowIds = computed(() => new Set(workflows.value.map(w => w.id)))
+
   const pinnedWorkflows = computed(() => {
     const byId = new Map(workflows.value.map(w => [w.id, w] as const))
     return pinnedIds.value.map(id => byId.get(id)).filter(Boolean) as WorkflowItem[]
   })
 
-  const canPinMore = computed(() => pinnedIds.value.length < 3)
+  const validPinnedCount = computed(() =>
+    pinnedIds.value.filter(id => workflowIds.value.has(id)).length,
+  )
+
+  const canPinMore = computed(() => validPinnedCount.value < 3)
+
+  function pruneStalePins() {
+    const valid = new Set(workflows.value.map(w => w.id))
+    const pruned = pinnedIds.value.filter(id => valid.has(id))
+    if (pruned.length !== pinnedIds.value.length) {
+      pinnedIds.value = pruned
+    }
+  }
 
   function createWorkflow(type: WorkflowType = 'workflow') {
     const id = `wf-${Date.now()}`
@@ -93,12 +110,13 @@ export function useWorkflows() {
   }
 
   function togglePin(id: string): { ok: boolean; reason?: 'limit' } {
+    pruneStalePins()
     const idx = pinnedIds.value.indexOf(id)
     if (idx !== -1) {
       pinnedIds.value = pinnedIds.value.filter(pid => pid !== id)
       return { ok: true }
     }
-    if (pinnedIds.value.length >= 3) return { ok: false, reason: 'limit' }
+    if (validPinnedCount.value >= 3) return { ok: false, reason: 'limit' }
     pinnedIds.value = [...pinnedIds.value, id]
     return { ok: true }
   }

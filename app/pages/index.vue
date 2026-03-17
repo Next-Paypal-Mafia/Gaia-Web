@@ -382,8 +382,13 @@ function onSendInstruction(text: string) {
             </div>
           </Transition>
 
-          <Transition name="panel-slide">
-            <div v-if="activeView === 'vault'" class="absolute inset-0 w-full h-full">
+          <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
+          <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
+            <div
+              v-if="activeView === 'vault'"
+              key="vault"
+              class="absolute inset-0 w-full h-full"
+            >
               <VaultPanel
                 v-model:open="vaultOpenProxy"
                 :sidebar-open="sidebarOpen"
@@ -391,10 +396,11 @@ function onSendInstruction(text: string) {
                 @show-sidebar="sidebarOpen = true"
               />
             </div>
-          </Transition>
-
-          <Transition name="panel-slide">
-            <div v-if="activeView === 'dashboard'" class="absolute inset-0 w-full h-full">
+            <div
+              v-else-if="activeView === 'dashboard'"
+              key="dashboard"
+              class="absolute inset-0 w-full h-full"
+            >
               <DashboardPanel
                 :workflows="wf.workflows.value"
                 :pinned-ids="wf.pinnedIds.value"
@@ -406,22 +412,25 @@ function onSendInstruction(text: string) {
                 @delete-workflow="onDeleteWorkflow"
               />
             </div>
-          </Transition>
-
-          <Transition name="panel-slide">
-            <div v-if="activeView === 'authentications'" class="absolute inset-0 w-full h-full">
+            <div
+              v-else-if="activeView === 'authentications'"
+              key="authentications"
+              class="absolute inset-0 w-full h-full"
+            >
               <AuthenticationsPanel />
             </div>
-          </Transition>
-
-          <Transition name="panel-slide">
-            <div v-if="activeView === 'profile'" class="absolute inset-0 w-full h-full overflow-y-auto">
+            <div
+              v-else-if="activeView === 'profile'"
+              key="profile"
+              class="absolute inset-0 w-full h-full overflow-y-auto"
+            >
               <ProfilePanel @back="activeView = null" />
             </div>
-          </Transition>
-
-          <Transition name="panel-slide">
-            <div v-if="activeWorkflowId !== null" class="absolute inset-0 w-full h-full">
+            <div
+              v-else-if="activeWorkflowId !== null"
+              :key="`workflow-${activeWorkflowId}`"
+              class="absolute inset-0 w-full h-full"
+            >
               <WorkflowPanel :workflow-title="activeWorkflowTitle" />
             </div>
           </Transition>
@@ -449,8 +458,8 @@ function onSendInstruction(text: string) {
 /* ── Shared GPU hint for all animated layers ─────────────────────────── */
 .fade-enter-active,
 .fade-leave-active,
-.panel-slide-enter-active,
-.panel-slide-leave-active,
+.panel-carousel-enter-active,
+.panel-carousel-leave-active,
 .landing-leave-leave-active,
 .browser-reveal-enter-active,
 .browser-reveal-leave-active {
@@ -470,21 +479,19 @@ function onSendInstruction(text: string) {
   opacity: 0;
 }
 
-/* ── Panel page transitions (Dashboard, Vault, Auth, Profile, Workflow) ─
-   Hyprland style: scales slightly while sliding, creating a layered pop. */
-.panel-slide-enter-active,
-.panel-slide-leave-active {
-  transition:
-    opacity 0.4s cubic-bezier(0.05, 0.9, 0.1, 1.05),
-    transform 0.45s cubic-bezier(0.05, 0.9, 0.1, 1.1); /* The Hyprland curve */
+/* ── Vertical carousel (Dashboard, Vault, Auth, Profile, Workflow) ────────
+   Old panel slides up and out, new panel slides up from below. */
+.panel-carousel-enter-active {
+  transition: transform 0.25s ease-in;
 }
-.panel-slide-enter-from {
-  opacity: 0;
-  transform: scale(0.97) translate3d(0, 30px, 0);
+.panel-carousel-leave-active {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.6, 1);
 }
-.panel-slide-leave-to {
-  opacity: 0;
-  transform: scale(1.03) translate3d(0, -30px, 0);
+.panel-carousel-enter-from {
+  transform: translate3d(0, 100%, 0);
+}
+.panel-carousel-leave-to {
+  transform: translate3d(0, -100%, 0);
 }
 
 /* ── Landing page exit (user sends first prompt) ───────────────────────
@@ -492,11 +499,11 @@ function onSendInstruction(text: string) {
 .landing-leave-leave-active {
   transition:
     opacity 0.25s ease-in,
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .landing-leave-leave-to {
   opacity: 0;
-  transform: scale(0.96) translate3d(0, -30px, 0);
+  transform: translateY(-200px);
 }
 
 /* ── Browser viewport entrance (The Hyprland "Pop") ───────────────
@@ -508,7 +515,7 @@ function onSendInstruction(text: string) {
 }
 .browser-reveal-enter-from {
   opacity: 0;
-  transform: scale(0.92) translate3d(0, 40px, 0);
+  transform: translateY(40px);
 }
 .browser-reveal-leave-active {
   transition: 
@@ -517,6 +524,6 @@ function onSendInstruction(text: string) {
 }
 .browser-reveal-leave-to {
   opacity: 0;
-  transform: scale(0.96) translate3d(0, 20px, 0);
+  transform: translateY(200px);
 }
 </style>
