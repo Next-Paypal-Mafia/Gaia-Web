@@ -1,20 +1,26 @@
 <script setup lang="ts">
 const open = defineModel<boolean>('open', { required: true })
 const settings = useSettings()
+const toast = useToast()
 
-type Page = 'main' | 'login' | 'signup'
+type Page = 'main' | 'login' | 'signup' | 'verify'
 const currentPage = ref<Page>('main')
 
 const loginEmail = ref('')
 const loginPassword = ref('')
 const loginShowPassword = ref(false)
 const loginLoading = ref(false)
+const loginError = ref('')
 
 const signupEmail = ref('')
 const signupPassword = ref('')
 const signupConfirmPassword = ref('')
 const signupShowPassword = ref(false)
 const signupLoading = ref(false)
+const signupError = ref('')
+
+const verifyEmail = ref('')
+const resendLoading = ref(false)
 
 const initials = computed(() => {
   const name = settings.username.value.trim() || 'U'
@@ -39,50 +45,125 @@ watch(open, async (val) => {
   } else {
     setTimeout(() => {
       currentPage.value = 'main'
-      resetAuthForms()
+      resetForms()
     }, 250)
   }
 })
 
-function resetAuthForms() {
+function resetForms() {
   loginEmail.value = ''
   loginPassword.value = ''
   loginShowPassword.value = false
   loginLoading.value = false
+  loginError.value = ''
   signupEmail.value = ''
   signupPassword.value = ''
   signupConfirmPassword.value = ''
   signupShowPassword.value = false
   signupLoading.value = false
+  signupError.value = ''
 }
 
 function openLogin() {
-  resetAuthForms()
+  resetForms()
   currentPage.value = 'login'
 }
 
 function openSignup() {
-  resetAuthForms()
+  resetForms()
   currentPage.value = 'signup'
 }
 
-function handleLogin() {
+async function handleLogin() {
   if (!loginEmail.value.trim() || !loginPassword.value) return
+  const supabase = useSupabaseClient()
   loginLoading.value = true
-  setTimeout(() => {
-    settings.isLoggedIn.value = true
-    if (loginEmail.value.includes('@')) {
-      settings.username.value = loginEmail.value.split('@')[0]
-    }
-    loginLoading.value = false
+  loginError.value = ''
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.value.trim(),
+      password: loginPassword.value,
+    })
+    if (error) throw error
+    resetForms()
     currentPage.value = 'main'
-    resetAuthForms()
-  }, 600)
+  } catch (e: any) {
+    loginError.value = e?.message || 'Could not sign in'
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+async function handleSignup() {
+  if (!signupEmail.value.trim() || !signupPassword.value) return
+  if (signupPassword.value !== signupConfirmPassword.value) {
+    signupError.value = 'Passwords do not match'
+    return
+  }
+  if (signupPassword.value.length < 6) {
+    signupError.value = 'Password must be at least 6 characters'
+    return
+  }
+  const supabase = useSupabaseClient()
+  signupLoading.value = true
+  signupError.value = ''
+  try {
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined
+    const { data, error } = await supabase.auth.signUp({
+      email: signupEmail.value.trim(),
+      password: signupPassword.value,
+      options: { emailRedirectTo: redirectTo },
+    })
+    if (error) throw error
+
+    if (data.session) {
+      resetForms()
+      currentPage.value = 'main'
+    } else {
+      verifyEmail.value = signupEmail.value.trim()
+      currentPage.value = 'verify'
+    }
+  } catch (e: any) {
+    signupError.value = e?.message || 'Could not create account'
+  } finally {
+    signupLoading.value = false
+  }
+}
+
+async function handleResendVerification() {
+  if (!verifyEmail.value.trim()) return
+  const supabase = useSupabaseClient()
+  resendLoading.value = true
+  try {
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: verifyEmail.value.trim(),
+      options: { emailRedirectTo: redirectTo },
+    })
+    if (error) throw error
+    toast.add({
+      title: 'Email sent',
+      description: 'Check your inbox for the verification link.',
+      icon: 'i-lucide-mail-check',
+      color: 'success',
+    })
+  } catch (e: any) {
+    toast.add({
+      title: 'Could not resend',
+      description: e?.message || 'Please try again later.',
+      icon: 'i-lucide-alert-circle',
+      color: 'error',
+    })
+  } finally {
+    resendLoading.value = false
+  }
 }
 
 async function handleGoogleLogin() {
   const supabase = useSupabaseClient()
   loginLoading.value = true
+  loginError.value = ''
   try {
     const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined
     const { error } = await supabase.auth.signInWithOAuth({
@@ -90,10 +171,9 @@ async function handleGoogleLogin() {
       options: { redirectTo },
     })
     if (error) throw error
+    resetForms()
     currentPage.value = 'main'
-    resetAuthForms()
   } catch (e: any) {
-    const toast = useToast()
     toast.add({
       title: 'Sign in failed',
       description: e?.message || 'Could not sign in with Google',
@@ -105,26 +185,10 @@ async function handleGoogleLogin() {
   }
 }
 
-function handleSignup() {
-  if (!signupEmail.value.trim() || !signupPassword.value || signupPassword.value !== signupConfirmPassword.value) return
-  signupLoading.value = true
-  setTimeout(() => {
-    settings.isLoggedIn.value = true
-    if (signupEmail.value.includes('@')) {
-      settings.username.value = signupEmail.value.split('@')[0]
-    }
-    signupLoading.value = false
-    currentPage.value = 'main'
-    resetAuthForms()
-  }, 600)
-}
-
 async function handleLogout() {
   const supabase = useSupabaseClient()
   await supabase.auth.signOut()
-  settings.isLoggedIn.value = false
-  settings.username.value = 'User'
-  settings.profilePicture.value = ''
+  window.location.reload()
 }
 </script>
 
@@ -139,12 +203,10 @@ async function handleLogout() {
     }"
   >
     <template #body>
-      <!-- Page wrapper with slide transition -->
       <div class="relative overflow-hidden">
-        <!-- MAIN PAGE -->
+        <!-- ═══ MAIN PAGE ═══ -->
         <Transition name="slide-left">
           <div v-if="currentPage === 'main'" class="flex flex-col max-h-[80vh] overflow-y-auto">
-            <!-- Header: centered title + circular X -->
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
               <div class="size-9" />
               <span class="font-bold text-base text-default">Settings</span>
@@ -156,11 +218,10 @@ async function handleLogout() {
               </button>
             </div>
 
-            <!-- Profile section -->
             <div class="flex flex-col items-center px-6 pb-6 pt-1 shrink-0">
               <div
                 v-if="settings.profilePicture.value"
-                class="size-[72px] rounded-full mb-3 shrink-0 overflow-hidden ring-2 ring-[var(--ui-border-muted)]"
+                class="size-[72px] rounded-full mb-3 shrink-0 overflow-hidden ring-2 ring-muted"
               >
                 <img
                   :src="settings.profilePicture.value"
@@ -177,6 +238,7 @@ async function handleLogout() {
               </div>
               <h2 class="text-xl font-semibold text-default">{{ settings.username.value }}</h2>
               <span class="text-xs text-dimmed mt-0.5">Free plan</span>
+
               <button
                 v-if="!settings.isLoggedIn.value"
                 class="mt-3 px-5 py-1.5 rounded-full bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors"
@@ -193,12 +255,10 @@ async function handleLogout() {
               </button>
             </div>
 
-            <!-- Account section -->
             <div class="px-4 pb-6 space-y-4">
               <div>
                 <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">Account</p>
-                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-[var(--ui-border-muted)]">
-                  <!-- Username row -->
+                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-muted">
                   <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
                       <UIcon name="i-lucide-user" class="size-4 text-muted shrink-0" />
@@ -212,8 +272,6 @@ async function handleLogout() {
                       :ui="{ base: 'text-right text-sm text-dimmed' }"
                     />
                   </div>
-
-                  <!-- Subscription row -->
                   <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
                       <UIcon name="i-lucide-sparkles" class="size-4 text-muted shrink-0" />
@@ -221,14 +279,12 @@ async function handleLogout() {
                     </div>
                     <span class="text-sm text-dimmed">Free Plan</span>
                   </div>
-
                 </div>
               </div>
 
-              <!-- App section -->
               <div>
                 <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">App</p>
-                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-[var(--ui-border-muted)]">
+                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-muted">
                   <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
                       <UIcon name="i-lucide-moon" class="size-4 text-muted shrink-0" />
@@ -242,7 +298,7 @@ async function handleLogout() {
           </div>
         </Transition>
 
-        <!-- LOGIN PAGE -->
+        <!-- ═══ LOGIN PAGE ═══ -->
         <Transition name="slide-right">
           <div v-if="currentPage === 'login'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
@@ -257,7 +313,6 @@ async function handleLogout() {
             </div>
 
             <div class="px-6 pb-6 pt-2 space-y-4">
-              <!-- Email + password -->
               <div class="space-y-3">
                 <div>
                   <label class="text-xs font-medium text-dimmed px-1 mb-1 block">Email</label>
@@ -296,6 +351,10 @@ async function handleLogout() {
                 </div>
               </div>
 
+              <p v-if="loginError" class="text-xs text-[var(--ui-color-error-500)] px-1">
+                {{ loginError }}
+              </p>
+
               <button
                 class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
                 :disabled="loginLoading || !loginEmail.trim() || !loginPassword"
@@ -310,9 +369,8 @@ async function handleLogout() {
                 <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
               </div>
 
-              <!-- Google auth -->
               <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50"
                 :disabled="loginLoading"
                 @click="handleGoogleLogin"
               >
@@ -335,7 +393,7 @@ async function handleLogout() {
           </div>
         </Transition>
 
-        <!-- SIGNUP PAGE -->
+        <!-- ═══ SIGNUP PAGE ═══ -->
         <Transition name="slide-right">
           <div v-if="currentPage === 'signup'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
@@ -350,7 +408,6 @@ async function handleLogout() {
             </div>
 
             <div class="px-6 pb-6 pt-2 space-y-4">
-              <!-- Email + password + confirm -->
               <div class="space-y-3">
                 <div>
                   <label class="text-xs font-medium text-dimmed px-1 mb-1 block">Email</label>
@@ -388,7 +445,7 @@ async function handleLogout() {
                   </UInput>
                 </div>
                 <div class="group/signup-cpw">
-                  <label class="text-xs font-medium text-dimmed px-1 mb-1 block">Confirm Password</label>
+                  <label class="text-xs font-medium text-dimmed px-1 mb-1 block">Confirm password</label>
                   <UInput
                     v-model="signupConfirmPassword"
                     :type="signupShowPassword ? 'text' : 'password'"
@@ -419,6 +476,10 @@ async function handleLogout() {
                 </div>
               </div>
 
+              <p v-if="signupError" class="text-xs text-[var(--ui-color-error-500)] px-1">
+                {{ signupError }}
+              </p>
+
               <button
                 class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
                 :disabled="signupLoading || !signupEmail.trim() || !signupPassword || signupPassword !== signupConfirmPassword"
@@ -433,9 +494,8 @@ async function handleLogout() {
                 <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
               </div>
 
-              <!-- Google auth -->
               <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all"
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50"
                 :disabled="signupLoading"
                 @click="handleGoogleLogin"
               >
@@ -453,6 +513,54 @@ async function handleLogout() {
                 <button class="text-primary hover:underline font-medium" @click="openLogin">
                   Log in
                 </button>
+              </p>
+            </div>
+          </div>
+        </Transition>
+
+        <!-- ═══ EMAIL VERIFICATION PAGE ═══ -->
+        <Transition name="slide-right">
+          <div v-if="currentPage === 'verify'" class="flex flex-col max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
+              <button
+                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
+                @click="currentPage = 'login'"
+              >
+                <UIcon name="i-lucide-chevron-left" class="size-[18px]" />
+              </button>
+              <span class="font-bold text-base text-default">Verify email</span>
+              <div class="size-9" />
+            </div>
+
+            <div class="flex flex-col items-center px-6 pb-8 pt-4 text-center">
+              <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                <UIcon name="i-lucide-mail-check" class="size-8 text-primary" />
+              </div>
+              <h3 class="text-lg font-semibold text-default mb-1.5">Check your inbox</h3>
+              <p class="text-sm text-muted leading-relaxed max-w-[280px]">
+                We sent a verification link to
+                <span class="font-medium text-default">{{ verifyEmail }}</span>.
+                Click the link to activate your account.
+              </p>
+
+              <div class="mt-6 space-y-3 w-full max-w-[240px]">
+                <button
+                  class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
+                  :disabled="resendLoading"
+                  @click="handleResendVerification"
+                >
+                  {{ resendLoading ? 'Sending...' : 'Resend email' }}
+                </button>
+                <button
+                  class="w-full py-2 rounded-xl bg-elevated text-sm font-medium text-muted hover:brightness-125 transition-colors"
+                  @click="openLogin"
+                >
+                  Back to log in
+                </button>
+              </div>
+
+              <p class="text-[11px] text-dimmed mt-6 leading-relaxed max-w-[260px]">
+                Didn't receive anything? Check your spam folder or try a different email address.
               </p>
             </div>
           </div>
@@ -490,7 +598,6 @@ async function handleLogout() {
   opacity: 0;
 }
 
-/* Keep content in flow when not transitioning */
 .slide-left-enter-to,
 .slide-left-leave-from,
 .slide-right-enter-to,

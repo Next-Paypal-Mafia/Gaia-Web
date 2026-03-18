@@ -22,8 +22,9 @@ export function useOpenCodeAgent() {
   let _token: string | undefined
   let _eventSource: EventSource | null = null
   let _assistantBuffer: AssistantBuffer | null = null
-  // Holds the internal opencode session ID returned by the server
-  // (different from the Gaia sessionId UUID)
+  // Guards against stale SSE events reaching messages after a resetChat.
+  // Set to true only inside sendInstruction; resetChat sets it to false.
+  let _acceptParts = false
 
   // ── SSE event processing ───────────────────────────────────────────────────
 
@@ -49,14 +50,16 @@ export function useOpenCodeAgent() {
     }
 
     if (type === 'session.idle') {
-      _finaliseAssistantMessage()
+      if (_acceptParts) _finaliseAssistantMessage()
+      _acceptParts = false
       isAgentRunning.value = false
       status.value = 'ready'
       return
     }
 
     if (type === 'session.error') {
-      _finaliseAssistantMessage()
+      if (_acceptParts) _finaliseAssistantMessage()
+      _acceptParts = false
       isAgentRunning.value = false
       status.value = 'error'
       return
@@ -64,8 +67,8 @@ export function useOpenCodeAgent() {
   }
 
   function _handlePartUpdated(properties: Record<string, any>) {
-    // The SDK shape is: { part: Part }
-    // messageID lives inside part, not at the top level of properties
+    if (!_acceptParts) return
+
     const part = properties.part as Record<string, any> | undefined
     if (!part) return
 
@@ -179,7 +182,6 @@ export function useOpenCodeAgent() {
     _baseUrl = baseUrl.replace(/\/$/, '')
     _token = token
 
-    // Create a Gaia server session
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
@@ -187,10 +189,18 @@ export function useOpenCodeAgent() {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const res = await fetch(`${_baseUrl}/sessions`, {
-      method: 'POST',
-      headers,
-    })
+    let res: Response
+    try {
+      res = await fetch(`${_baseUrl}/sessions`, {
+        method: 'POST',
+        headers,
+      })
+    }
+    catch (err) {
+      console.error('[useOpenCodeAgent] Network error creating session (CORS / unreachable?):', err)
+      status.value = 'error'
+      return
+    }
 
     if (!res.ok) {
       const body = await res.text()
@@ -202,7 +212,6 @@ export function useOpenCodeAgent() {
     const data = await res.json() as { sessionId: string }
     sessionId.value = data.sessionId
 
-    // Open the SSE stream
     const sseUrl = new URL(`${_baseUrl}/sessions/${data.sessionId}/event`)
     if (token) sseUrl.searchParams.set('token', token)
 
@@ -215,7 +224,6 @@ export function useOpenCodeAgent() {
 
     es.onerror = (e) => {
       console.error('[useOpenCodeAgent] SSE error', e)
-      // Only set error if we were actively running
       if (isAgentRunning.value) {
         isAgentRunning.value = false
         status.value = 'error'
@@ -290,6 +298,7 @@ export function useOpenCodeAgent() {
     isAgentRunning.value = true
     status.value = 'submitted'
     _assistantBuffer = null
+    _acceptParts = true
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -356,7 +365,8 @@ export function useOpenCodeAgent() {
   }
 
   function resetChat(initialMessages: UIMessage[] = []) {
-    _finaliseAssistantMessage()
+    _acceptParts = false
+    _assistantBuffer = null
     isAgentRunning.value = false
     status.value = 'ready'
     messages.value = [...initialMessages]

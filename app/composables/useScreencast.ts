@@ -23,6 +23,7 @@ export function useScreencast() {
     _ws = ws
 
     ws.onopen = () => {
+      console.log('[useScreencast] WebSocket connected to', url.toString())
       isStreaming.value = true
     }
 
@@ -36,14 +37,17 @@ export function useScreencast() {
 
         if (msg.type === 'frame' && msg.data) {
           currentFrame.value = `data:image/jpeg;base64,${msg.data}`
+        } else {
+          console.log('[useScreencast] Non-frame message:', msg.type)
         }
       }
       catch {
-        // Non-JSON message — ignore
+        console.warn('[useScreencast] Non-JSON message received:', typeof event.data, String(event.data).slice(0, 120))
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (e) => {
+      console.warn('[useScreencast] WebSocket closed — code:', e.code, 'reason:', e.reason || '(none)')
       isStreaming.value = false
       _ws = null
     }

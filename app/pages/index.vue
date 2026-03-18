@@ -33,6 +33,9 @@ const activeView = ref<'dashboard' | 'vault' | 'authentications' | 'profile' | n
 const activeWorkflowId = ref<string | null>(null)
 const activeWorkflowTitle = ref<string>('')
 const activeChatId = ref('chat-1')
+// Tracks which chat currently owns `agent.messages` / the SSE stream.
+// Stays pinned to the originating chat even when the user browses elsewhere.
+const streamingChatId = ref(activeChatId.value)
 const chatHistory = ref([
   { id: 'chat-1', title: 'New chat' },
 ])
@@ -43,10 +46,26 @@ const wf = useWorkflows()
 
 const isBrowserView = computed(() => activeView.value === null && activeWorkflowId.value === null)
 
+// ── Derived state for the currently viewed chat ──────────────────────────────
+const isViewingStreamingChat = computed(() => activeChatId.value === streamingChatId.value)
+
+const currentMessages = computed<UIMessage[]>(() => {
+  if (isViewingStreamingChat.value) return [...agent.messages.value]
+  return chatSessions.value[activeChatId.value] ?? []
+})
+
+const currentStatus = computed(() =>
+  isViewingStreamingChat.value ? agent.status.value : 'ready',
+)
+
+const currentIsRunning = computed(() =>
+  isViewingStreamingChat.value && agent.isAgentRunning.value,
+)
+
 // ── Landing / browser-reveal animation ───────────────────────────────────────
 const browserRevealed = ref(false)
 const showLanding = computed(() =>
-  isBrowserView.value && agent.messages.value.length === 0 && !browserRevealed.value,
+  isBrowserView.value && currentMessages.value.length === 0 && !browserRevealed.value,
 )
 
 const landingInput = ref('')
@@ -69,25 +88,25 @@ function onLandingSend(text?: string) {
   if (!msg) return
   landingInput.value = ''
   browserRevealed.value = true
-  // Make the chat appear in the sidebar with a meaningful title immediately.
   setActiveChatTitleFromText(msg)
+  bindAgentToActiveChat()
   nextTick(() => {
     agent.sendInstruction(msg)
   })
 }
 
 watch(() => agent.messages.value.length, (len) => {
-  if (len === 0) browserRevealed.value = false
+  if (len === 0 && isViewingStreamingChat.value) browserRevealed.value = false
 })
 
-// Keep active chat session + title in sync as messages stream in.
+// Persist agent stream into the chat that owns it.
 watch(
   () => agent.messages.value,
   (messages) => {
-    chatSessions.value[activeChatId.value] = [...messages]
+    chatSessions.value[streamingChatId.value] = [...messages]
     const firstUser = messages.find(m => m.role === 'user')
     const firstText = firstUser?.parts?.find((p: any) => p.type === 'text')?.text as string | undefined
-    const idx = chatHistory.value.findIndex(c => c.id === activeChatId.value)
+    const idx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
     const item = chatHistory.value[idx]
     if (firstText && idx !== -1 && item && (item.title === 'New chat' || !item.title.trim())) {
       item.title = firstText.trim().slice(0, 40) || 'New chat'
@@ -98,7 +117,11 @@ watch(
 
 // ── Chat history helpers ─────────────────────────────────────────────────────
 const chatsWithMessages = computed(() =>
-  chatHistory.value.filter(c => (chatSessions.value[c.id]?.length ?? 0) > 0 || (c.id === activeChatId.value && agent.messages.value.length > 0)),
+  chatHistory.value.filter(c =>
+    (chatSessions.value[c.id]?.length ?? 0) > 0
+    || c.id === activeChatId.value
+    || (c.id === streamingChatId.value && agent.messages.value.length > 0),
+  ),
 )
 
 const vaultOpenProxy = computed({
@@ -116,29 +139,45 @@ function getChatTitle(messages: UIMessage[]): string {
 }
 
 function getMessageCount(chatId: string): number {
-  if (chatId === activeChatId.value) return agent.messages.value.length
+  if (chatId === streamingChatId.value) return agent.messages.value.length
   return chatSessions.value[chatId]?.length ?? 0
 }
 
-function onNewChat() {
-  const currentMessages = agent.getMessages()
-  chatSessions.value[activeChatId.value] = currentMessages
+/**
+ * If the active chat isn't the one the agent is streaming to,
+ * snapshot the old stream and rebind the agent to the active chat.
+ */
+function bindAgentToActiveChat() {
+  if (activeChatId.value === streamingChatId.value) return
+  chatSessions.value[streamingChatId.value] = agent.getMessages()
+  const stored = chatSessions.value[activeChatId.value] ?? []
+  streamingChatId.value = activeChatId.value
+  agent.resetChat([...stored])
+}
 
-  if (currentMessages.length > 0) {
-    const idx = chatHistory.value.findIndex(c => c.id === activeChatId.value)
+function onNewChat() {
+  // Snapshot the current agent into its owning chat (only if idle)
+  if (!agent.isAgentRunning.value) {
+    chatSessions.value[streamingChatId.value] = agent.getMessages()
+    const idx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
     const item = chatHistory.value[idx]
-    if (idx !== -1 && item) {
-      item.title = getChatTitle(currentMessages)
+    if (idx !== -1 && item && agent.getMessages().length > 0) {
+      item.title = getChatTitle(agent.getMessages())
     }
   }
 
-  const unusedChat = chatHistory.value.find(c => getMessageCount(c.id) === 0)
+  const unusedChat = chatHistory.value.find(c =>
+    getMessageCount(c.id) === 0 && c.id !== streamingChatId.value,
+  )
   if (unusedChat) {
     activeChatId.value = unusedChat.id
     activeView.value = null
     activeWorkflowId.value = null
     browserRevealed.value = false
-    agent.resetChat()
+    if (!agent.isAgentRunning.value) {
+      streamingChatId.value = unusedChat.id
+      agent.resetChat()
+    }
     return
   }
 
@@ -149,20 +188,22 @@ function onNewChat() {
   activeView.value = null
   activeWorkflowId.value = null
   browserRevealed.value = false
-  agent.resetChat()
+  if (!agent.isAgentRunning.value) {
+    streamingChatId.value = newId
+    agent.resetChat()
+  }
 }
 
 function onSelectChat(id: string) {
   if (id === activeChatId.value && isBrowserView.value) return
 
-  const currentMessages = agent.getMessages()
-  chatSessions.value[activeChatId.value] = currentMessages
-
-  if (currentMessages.length > 0) {
-    const idx = chatHistory.value.findIndex(c => c.id === activeChatId.value)
+  // If agent is idle, persist its state before switching
+  if (!agent.isAgentRunning.value) {
+    chatSessions.value[streamingChatId.value] = agent.getMessages()
+    const idx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
     const item = chatHistory.value[idx]
-    if (idx !== -1 && item) {
-      item.title = getChatTitle(currentMessages)
+    if (idx !== -1 && item && agent.getMessages().length > 0) {
+      item.title = getChatTitle(agent.getMessages())
     }
   }
 
@@ -170,9 +211,14 @@ function onSelectChat(id: string) {
   activeView.value = null
   activeWorkflowId.value = null
 
-  const restored = chatSessions.value[id] ?? []
-  browserRevealed.value = restored.length > 0
-  agent.resetChat([...restored])
+  const stored = chatSessions.value[id] ?? []
+  browserRevealed.value = stored.length > 0
+
+  // Rebind the agent only when idle
+  if (!agent.isAgentRunning.value) {
+    streamingChatId.value = id
+    agent.resetChat([...stored])
+  }
 }
 
 function onSelectWorkflow(id: string, title: string) {
@@ -240,6 +286,12 @@ function onDeleteChat(id: string) {
   const idx = chatHistory.value.findIndex(c => c.id === id)
   if (idx === -1) return
 
+  // If deleting the chat that owns the active stream, stop it
+  if (id === streamingChatId.value) {
+    agent.stop()
+    agent.resetChat()
+  }
+
   chatHistory.value.splice(idx, 1)
   delete chatSessions.value[id]
 
@@ -247,7 +299,8 @@ function onDeleteChat(id: string) {
     const first = chatHistory.value[0]
     if (first) {
       activeChatId.value = first.id
-      const restored = chatSessions.value[activeChatId.value] ?? []
+      streamingChatId.value = first.id
+      const restored = chatSessions.value[first.id] ?? []
       browserRevealed.value = restored.length > 0
       agent.resetChat([...restored])
     }
@@ -258,8 +311,10 @@ function onDeleteChat(id: string) {
 }
 
 function onSendInstruction(text: string) {
+  // If sending from a chat that isn't the streaming one, rebind first
+  bindAgentToActiveChat()
+
   if (agent.messages.value.length === 0) {
-    // First message in this chat: set title so it appears correctly in sidebar.
     setActiveChatTitleFromText(text)
   }
   agent.sendInstruction(text)
@@ -312,7 +367,8 @@ function onSendInstruction(text: string) {
               <div class="relative group">
                 <UTextarea
                   v-model="landingInput"
-                  placeholder="Ask Gaia to do something..."
+                  :placeholder="agent.isAgentRunning.value && !isViewingStreamingChat ? 'Agent is busy in another chat...' : 'Ask Gaia to do something...'"
+                  :disabled="agent.isAgentRunning.value && !isViewingStreamingChat"
                   autoresize
                   :rows="2"
                   :maxrows="5"
@@ -322,7 +378,7 @@ function onSendInstruction(text: string) {
                 />
                 <button
                   type="submit"
-                  :disabled="!landingInput.trim()"
+                  :disabled="!landingInput.trim() || (agent.isAgentRunning.value && !isViewingStreamingChat)"
                   class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95"
                 >
                   <UIcon name="i-lucide-arrow-up" class="size-4" />
@@ -335,6 +391,7 @@ function onSendInstruction(text: string) {
                 v-for="s in suggestions"
                 :key="s"
                 class="px-4 py-2 rounded-full text-xs font-medium text-muted bg-elevated hover:bg-default/80 hover:text-default transition-all border border-transparent hover:border-muted active:scale-[0.97]"
+                :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value && !isViewingStreamingChat }"
                 @click="onLandingSend(s)"
               >
                 {{ s }}
@@ -440,10 +497,11 @@ function onSendInstruction(text: string) {
         <Transition name="fade">
           <div v-show="isBrowserView" class="h-70 shrink-0">
             <ChatPanel
-              :messages="[...agent.messages.value]"
-              :status="agent.status.value"
-              :is-agent-running="agent.isAgentRunning.value"
-              :is-connected="screencast.isStreaming.value"
+              :messages="currentMessages"
+              :status="currentStatus"
+              :is-agent-running="currentIsRunning"
+              :is-connected="!!agent.sessionId.value"
+              :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat"
               @send="onSendInstruction"
               @stop="agent.stop"
             />

@@ -33,6 +33,17 @@ const settingsOpen = ref(false)
 const searchOpen = ref(false)
 const settings = useSettings()
 
+// New Chat is an action (not a routed view), so we track a local selected state
+// to let the sidebar highlight it like other nav items.
+const newChatSelected = ref(false)
+
+onMounted(() => {
+  // Default to highlighting "New Chat" when landing in the main browser/chat view.
+  if (props.activeView === null && props.activeWorkflowId === null) {
+    newChatSelected.value = true
+  }
+})
+
 // ── Rename chat ───────────────────────────────────────────────────────────────
 const renamingChatId = ref<string | null>(null)
 const renameInput = ref('')
@@ -173,6 +184,23 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
   return props.activeView === view
 }
 
+const isNewChatActive = computed(() => {
+  return newChatSelected.value && props.activeView === null && props.activeWorkflowId === null
+})
+
+watch(
+  () => [props.activeView, props.activeWorkflowId, props.activeChatId] as const,
+  ([view, wfId, chatId], [prevView, prevWfId, prevChatId]) => {
+    // Any navigation away clears the "New Chat" highlight
+    if (view !== prevView || wfId !== prevWfId || chatId !== prevChatId) {
+      // Keep it selected only when we are effectively in the "fresh chat" state.
+      if (view !== null || wfId !== null) {
+        newChatSelected.value = false
+      }
+    }
+  },
+)
+
 </script>
 
 <template>
@@ -215,12 +243,14 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
 
         <!-- New Chat -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-default hover:bg-default/60 transition-colors text-left"
-          @click="emit('newChat')"
+          class="group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-default transition-colors text-left"
+          :class="isNewChatActive ? 'bg-default/80' : 'hover:bg-default/60'"
+          @click="() => { newChatSelected = true; emit('newChat') }"
         >
           <UIcon
             name="i-lucide-square-pen"
-            class="size-4 shrink-0 text-muted"
+            class="size-4 shrink-0 transition-colors"
+            :class="isNewChatActive ? 'text-primary' : 'text-muted'"
           />
           <span>New Chat</span>
         </button>
@@ -270,7 +300,7 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
 
       <!-- Chat history -->
       <div class="flex flex-col overflow-hidden mt-4">
-        <span class="px-4 pb-1.5 text-xs text-dimmed font-medium">Chat</span>
+        <span class="px-4 pb-1.5 text-xs text-dimmed font-medium">Chats</span>
         <div class="flex flex-col gap-0.5 overflow-y-auto px-2">
           <div
             v-for="chat in chatHistory"
@@ -279,8 +309,9 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
             :class="chat.id === activeChatId && activeView === null && activeWorkflowId === null
               ? 'bg-default/80 text-default'
               : 'text-muted hover:bg-default/40 hover:text-default'"
-            @click="emit('selectChat', chat.id)"
+            @click="() => { newChatSelected = false; emit('selectChat', chat.id) }"
           >
+            <!-- selecting a chat clears New Chat selection -->
             <input
               v-if="renamingChatId === chat.id"
               ref="renameInputRef"
@@ -335,13 +366,18 @@ function isNavActive(view: 'dashboard' | 'vault' | 'authentications' | 'profile'
               @keydown.escape="cancelWorkflowRename"
               @blur="confirmWorkflowRename"
             />
-            <span v-else class="truncate flex items-center gap-2">
+            <span v-else class="min-w-0 flex-1 flex items-center gap-2">
               <UIcon
-                :name="wf.type === 'cron' ? 'i-lucide-timer' : 'i-lucide-layers'"
+                name="i-lucide-layers"
                 class="size-3.5 shrink-0"
-                :class="wf.type === 'cron' ? 'text-primary' : 'text-muted'"
+                :class="wf.id === activeWorkflowId ? 'text-primary' : 'text-muted'"
               />
-              {{ wf.title }}
+              <span class="truncate">{{ wf.title }}</span>
+              <UIcon
+                v-if="wf.type === 'cron'"
+                name="i-lucide-timer"
+                class="ml-auto size-3.5 shrink-0 text-muted"
+              />
             </span>
             <UDropdownMenu
               :items="getPinnedMenuItems(wf)"

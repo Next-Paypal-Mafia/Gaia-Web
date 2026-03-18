@@ -55,10 +55,7 @@ function saveProfile() {
 
 async function handleLogout() {
   await supabase.auth.signOut()
-  settings.isLoggedIn.value = false
-  settings.username.value = 'User'
-  settings.profilePicture.value = ''
-  emit('back')
+  window.location.reload()
 }
 </script>
 

@@ -10,6 +10,7 @@ const props = defineProps<{
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   isAgentRunning: boolean
   isConnected: boolean
+  inputLocked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -209,8 +210,8 @@ function toolDetail(name: string, part: any): string {
       <form class="flex gap-2" @submit.prevent="onSubmit">
         <UTextarea
           v-model="input"
-          :placeholder="isConnected ? 'Ask Gaia to do something...' : 'Connect to Chrome first'"
-          :disabled="!isConnected"
+          :placeholder="inputLocked ? 'Agent is busy in another chat...' : isConnected ? 'Ask Gaia to do something...' : 'Connect to Chrome first'"
+          :disabled="!isConnected || inputLocked"
           autoresize
           :rows="1"
           :maxrows="4"
@@ -224,7 +225,7 @@ function toolDetail(name: string, part: any): string {
             type="submit"
             icon="i-lucide-send"
             size="sm"
-            :disabled="!input.trim() || !isConnected"
+            :disabled="!input.trim() || !isConnected || inputLocked"
           />
           <UButton
             v-else
