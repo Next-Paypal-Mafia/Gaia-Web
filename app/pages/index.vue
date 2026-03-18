@@ -345,14 +345,19 @@ function onSendInstruction(text: string) {
 
     <!-- Right side -->
     <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
-      <!-- Sidebar expand button when shelved -->
-      <button
-        v-if="!sidebarOpen"
-        class="ml-2 inline-flex items-center justify-center px-2.5 py-2 rounded-xl bg-elevated/90 hover:bg-elevated text-sm text-default shadow-sm transition-colors cursor-pointer self-start"
-        @click="sidebarOpen = true"
-      >
-        <UIcon name="i-lucide-panel-left-open" class="size-4 text-primary" />
-      </button>
+      <!-- Compact header when sidebar is collapsed: toggle + logo on one line -->
+      <div v-if="!sidebarOpen" class="flex items-center gap-2 px-2 shrink-0">
+        <button
+          class="inline-flex items-center justify-center p-2 rounded-xl bg-elevated/90 hover:bg-elevated text-default shadow-sm transition-colors cursor-pointer"
+          @click="sidebarOpen = true"
+        >
+          <UIcon name="i-lucide-panel-left-open" class="size-4 text-primary" />
+        </button>
+        <div class="flex items-center gap-1.5">
+          <UIcon name="i-lucide-earth" class="size-5 text-primary" />
+          <span class="font-bold text-sm tracking-tight">Gaia</span>
+        </div>
+      </div>
       <!-- ═══ Landing / Welcome page ═══ -->
       <Transition name="landing-leave">
         <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative">
@@ -407,35 +412,67 @@ function onSendInstruction(text: string) {
 
       <!-- ═══ Browser + Chat / Other panels ═══ -->
       <template v-if="!showLanding">
-        <!-- Browser controls row -->
-        <Transition name="fade">
-          <div v-show="isBrowserView" class="flex items-center">
-            <button
-              v-if="!sidebarOpen"
-              class="flex items-center gap-2 px-4 py-2 shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
-              @click="sidebarOpen = true"
-            >
-              <UIcon name="i-lucide-earth" class="size-5 text-primary" />
-              <span class="font-bold text-sm tracking-tight">Gaia</span>
-            </button>
-            <!-- URL/navigation controls intentionally hidden for now (future feature) -->
-            <div class="flex-1 min-w-0" />
-          </div>
-        </Transition>
-
         <!-- Main content area -->
         <div class="flex-1 min-h-0 mx-2 relative overflow-hidden">
+          <!-- Browser view: CSS Grid layout that animates between sidebar open/collapsed -->
           <Transition name="browser-reveal">
             <div
               v-show="isBrowserView"
-              class="absolute inset-0 w-full h-full"
+              class="absolute inset-0 browser-grid"
+              :class="sidebarOpen ? 'browser-grid--open' : 'browser-grid--collapsed'"
             >
-              <BrowserViewport
-                :frame="screencast.currentFrame.value"
-                :is-connected="screencast.isStreaming.value"
-                :is-loading="false"
-                :page-background-color="screencast.pageBackgroundColor.value"
-              />
+              <!-- Viewport tile -->
+              <div class="browser-grid__viewport">
+                <div class="w-full aspect-video rounded-2xl overflow-hidden relative">
+                  <BrowserViewport
+                    :frame="screencast.currentFrame.value"
+                    :is-connected="screencast.isStreaming.value"
+                    :is-loading="false"
+                    :page-background-color="screencast.pageBackgroundColor.value"
+                  />
+                  <div class="absolute bottom-2.5 left-2.5">
+                    <span
+                      v-if="screencast.isStreaming.value"
+                      class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full"
+                    >
+                      <span class="size-1.5 rounded-full bg-success animate-pulse" />
+                      Live
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Agent activity panel -->
+              <div class="browser-grid__activity min-h-0 overflow-hidden">
+                <AgentActivity
+                  :messages="currentMessages"
+                  :status="currentStatus"
+                  :is-agent-running="currentIsRunning"
+                />
+              </div>
+
+              <!-- Chat + input -->
+              <div class="browser-grid__chat flex flex-col min-h-0">
+                <div class="flex-1 min-h-0">
+                  <ChatPanel
+                    :messages="currentMessages"
+                    :status="currentStatus"
+                    :is-agent-running="currentIsRunning"
+                    :is-connected="!!agent.sessionId.value"
+                  />
+                </div>
+                <div class="shrink-0 flex justify-center py-2" :class="sidebarOpen ? 'px-4' : 'px-2'">
+                  <div class="w-full" :class="sidebarOpen ? 'max-w-2xl' : ''">
+                    <ChatInput
+                      :is-agent-running="currentIsRunning"
+                      :is-connected="!!agent.sessionId.value"
+                      :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat"
+                      @send="onSendInstruction"
+                      @stop="agent.stop"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </Transition>
 
@@ -492,28 +529,13 @@ function onSendInstruction(text: string) {
             </div>
           </Transition>
         </div>
-
-        <!-- Chat panel -->
-        <Transition name="fade">
-          <div v-show="isBrowserView" class="h-70 shrink-0">
-            <ChatPanel
-              :messages="currentMessages"
-              :status="currentStatus"
-              :is-agent-running="currentIsRunning"
-              :is-connected="!!agent.sessionId.value"
-              :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat"
-              @send="onSendInstruction"
-              @stop="agent.stop"
-            />
-          </div>
-        </Transition>
       </template>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ── Shared GPU hint for all animated layers ─────────────────────────── */
+/* ── Shared GPU hint ──────────────────────────────────────────────────── */
 .fade-enter-active,
 .fade-leave-active,
 .panel-carousel-enter-active,
@@ -525,63 +547,70 @@ function onSendInstruction(text: string) {
   backface-visibility: hidden;
 }
 
-/* ── Fade (browser controls row, chat panel) ─────────────────────────── */
-.fade-enter-active {
-  transition: opacity 0.35s ease-out;
-}
-.fade-leave-active {
-  transition: opacity 0.2s ease-in;
-}
+/* ── Fade ─────────────────────────────────────────────────────────────── */
+.fade-enter-active { transition: opacity 0.35s ease-out; }
+.fade-leave-active { transition: opacity 0.2s ease-in; }
 .fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
+.fade-leave-to { opacity: 0; }
 
-/* ── Vertical carousel (Dashboard, Vault, Auth, Profile, Workflow) ────────
-   Old panel slides up and out, new panel slides up from below. */
-.panel-carousel-enter-active {
-  transition: transform 0.25s ease-in;
-}
-.panel-carousel-leave-active {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.6, 1);
-}
-.panel-carousel-enter-from {
-  transform: translate3d(0, 100%, 0);
-}
-.panel-carousel-leave-to {
-  transform: translate3d(0, -100%, 0);
-}
+/* ── Vertical carousel ────────────────────────────────────────────────── */
+.panel-carousel-enter-active { transition: transform 0.25s ease-in; }
+.panel-carousel-leave-active { transition: transform 0.25s cubic-bezier(0.4, 0, 0.6, 1); }
+.panel-carousel-enter-from { transform: translate3d(0, 100%, 0); }
+.panel-carousel-leave-to { transform: translate3d(0, -100%, 0); }
 
-/* ── Landing page exit (user sends first prompt) ───────────────────────
-   Closes quickly by scaling down and fading out, like dismissing a tiled window. */
+/* ── Landing exit ─────────────────────────────────────────────────────── */
 .landing-leave-leave-active {
-  transition:
-    opacity 0.25s ease-in,
-    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.25s ease-in, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.landing-leave-leave-to {
-  opacity: 0;
-  transform: translateY(-200px);
+.landing-leave-leave-to { opacity: 0; transform: translateY(-200px); }
+
+/* ── Browser reveal (Hyprland pop) ────────────────────────────────────── */
+.browser-reveal-enter-active {
+  transition: opacity 0.4s cubic-bezier(0.05, 0.9, 0.1, 1.05),
+              transform 0.5s cubic-bezier(0.05, 0.9, 0.1, 1.1);
+}
+.browser-reveal-enter-from { opacity: 0; transform: translateY(40px); }
+.browser-reveal-leave-active {
+  transition: opacity 0.2s ease-in, transform 0.25s cubic-bezier(0.4, 0, 1, 1);
+}
+.browser-reveal-leave-to { opacity: 0; transform: translateY(200px); }
+
+/* ═══ Browser Grid — animated tiling layout ═══════════════════════════
+   Sidebar open:  viewport + activity side-by-side on top, chat below
+   Sidebar closed: viewport + activity stacked on left, chat fills right
+   Uses CSS grid-template transitions for Hyprland-style smooth retiling */
+
+.browser-grid {
+  display: grid;
+  gap: 0.5rem;
+  transition: grid-template-columns 0.5s cubic-bezier(0.05, 0.9, 0.1, 1.05),
+              grid-template-rows 0.5s cubic-bezier(0.05, 0.9, 0.1, 1.05);
 }
 
-/* ── Browser viewport entrance (The Hyprland "Pop") ───────────────
-   Scales up from a smaller size with an overshoot bounce. */
-.browser-reveal-enter-active {
-  transition:
-    opacity 0.4s cubic-bezier(0.05, 0.9, 0.1, 1.05),
-    transform 0.5s cubic-bezier(0.05, 0.9, 0.1, 1.1);
+.browser-grid__viewport,
+.browser-grid__activity,
+.browser-grid__chat {
+  transition: transform 0.5s cubic-bezier(0.05, 0.9, 0.1, 1.05),
+              opacity 0.35s ease;
+  will-change: transform, opacity;
 }
-.browser-reveal-enter-from {
-  opacity: 0;
-  transform: translateY(40px);
+
+/* Sidebar OPEN: 2-column top row (viewport | activity), chat spans bottom */
+.browser-grid--open {
+  grid-template-columns: 55% 1fr;
+  grid-template-rows: auto 1fr;
 }
-.browser-reveal-leave-active {
-  transition: 
-    opacity 0.2s ease-in,
-    transform 0.25s cubic-bezier(0.4, 0, 1, 1);
+.browser-grid--open .browser-grid__viewport  { grid-row: 1; grid-column: 1; }
+.browser-grid--open .browser-grid__activity  { grid-row: 1; grid-column: 2; }
+.browser-grid--open .browser-grid__chat      { grid-row: 2; grid-column: 1 / -1; }
+
+/* Sidebar COLLAPSED: left stack (viewport over activity), chat fills right */
+.browser-grid--collapsed {
+  grid-template-columns: 42% 1fr;
+  grid-template-rows: auto 1fr;
 }
-.browser-reveal-leave-to {
-  opacity: 0;
-  transform: translateY(200px);
-}
+.browser-grid--collapsed .browser-grid__viewport  { grid-row: 1; grid-column: 1; }
+.browser-grid--collapsed .browser-grid__activity  { grid-row: 2; grid-column: 1; }
+.browser-grid--collapsed .browser-grid__chat      { grid-row: 1 / -1; grid-column: 2; }
 </style>
