@@ -7,7 +7,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      agentApiUrl: '',
+      serverUrl: process.env.SERVER_URL || '',
     },
   },
 
