@@ -72,7 +72,7 @@ const filteredFiles = computed(() => {
 
     <!-- Original Content (Disabled state) -->
     <div class="flex flex-col h-full w-full opacity-40 pointer-events-none select-none">
-      <!-- Toolbar: Gaia logo (when sidebar hidden) + search on left, view selector + add + filter on right -->
+      <!-- Toolbar: jellybyte logo (when sidebar hidden) + search on left, view selector + add + filter on right -->
       <div class="flex items-center gap-3 px-4 pt-4 pb-3 shrink-0">
       <!-- jellybyte logo + text - shown when sidebar is hidden, click to show sidebar -->
       <button

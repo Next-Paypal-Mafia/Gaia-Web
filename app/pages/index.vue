@@ -11,7 +11,7 @@ let tilingAnimTimer: ReturnType<typeof setTimeout> | null = null
 onMounted(async () => {
   const apiUrl = config.public.serverUrl
   if (!apiUrl) {
-    console.warn('[Gaia] SERVER_URL is not set — skipping session creation')
+    console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
     return
   }
 
