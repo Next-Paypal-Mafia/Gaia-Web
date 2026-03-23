@@ -1,5 +1,5 @@
 {
-  "name": "gaia",
+  "name": "jellybyte",
   "type": "module",
   "private": true,
   "scripts": {
@@ -12,12 +12,16 @@
   "dependencies": {
     "@nuxt/ui": "^4.5.1",
     "@nuxtjs/supabase": "^2.0.4",
+    "marked": "^17.0.5",
     "nuxt": "^4.3.1",
     "tailwindcss": "^4.2.1",
     "vue": "^3.5.30",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.1"
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/marked": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.2.6"
   }
 }

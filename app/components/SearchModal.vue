@@ -30,7 +30,7 @@ function fuzzyMatch(text: string, query: string): boolean {
   const q = query.toLowerCase().trim()
   let ti = 0
   for (let qi = 0; qi < q.length; qi++) {
-    const idx = t.indexOf(q[qi], ti)
+    const idx = t.indexOf(q.charAt(qi), ti)
     if (idx === -1) return false
     ti = idx + 1
   }
@@ -72,7 +72,7 @@ watch(open, (val) => {
   <UModal
     v-model:open="open"
     :ui="{
-      overlay: 'backdrop-blur-sm bg-black/50',
+      overlay: 'backdrop-blur-md bg-white/40 dark:bg-black/40',
       content: 'max-w-lg overflow-hidden',
       body: 'p-0 sm:p-0',
       header: 'hidden',
@@ -80,7 +80,7 @@ watch(open, (val) => {
     }"
   >
     <template #body>
-      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-default/95">
+      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-2xl">
         <!-- Header: search input + close -->
         <div class="flex items-center gap-2 px-4 pt-4 pb-3 shrink-0">
           <UInput
@@ -88,7 +88,7 @@ watch(open, (val) => {
             placeholder="Search chats and workflows..."
             class="flex-1"
             size="md"
-            :ui="{ base: 'bg-default/60 border-[var(--ui-border-muted)]' }"
+            :ui="{ base: 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.1] dark:border-white/10' }"
             autofocus
           >
             <template #leading>
@@ -96,7 +96,7 @@ watch(open, (val) => {
             </template>
           </UInput>
           <button
-            class="size-9 shrink-0 rounded-full bg-default/60 flex items-center justify-center text-default hover:brightness-125 transition-all"
+            class="size-9 shrink-0 rounded-full bg-black/[0.02] dark:bg-white/[0.04] flex items-center justify-center text-default hover:brightness-125 transition-all"
             aria-label="Close"
             @click="open = false"
           >
@@ -113,7 +113,7 @@ watch(open, (val) => {
                 v-for="chat in filteredChats"
                 :key="chat.id"
                 class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full"
-                :class="chat.id === activeChatId ? 'bg-default/80 text-default' : 'text-muted hover:bg-default/40 hover:text-default'"
+                :class="chat.id === activeChatId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default'"
                 @click="selectChatAndClose(chat.id)"
               >
                 <UIcon name="i-lucide-message-circle" class="size-4 shrink-0 text-muted" />
@@ -128,7 +128,7 @@ watch(open, (val) => {
               <button
                 v-for="workflow in filteredWorkflows"
                 :key="workflow.id"
-                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-default/40 hover:text-default"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default"
                 @click="selectWorkflowAndClose(workflow.id)"
               >
                 <UIcon name="i-lucide-git-branch" class="size-4 shrink-0 text-muted" />

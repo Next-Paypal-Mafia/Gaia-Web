@@ -2,7 +2,8 @@
 const open = defineModel<boolean>('open', { required: true })
 
 defineProps<{
-  sidebarOpen?: boolean
+  /** When false (icon rail), show header control to expand the full sidebar */
+  sidebarExpanded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -38,7 +39,7 @@ function fuzzyMatch(text: string, query: string): boolean {
   const q = query.toLowerCase().trim()
   let ti = 0
   for (let qi = 0; qi < q.length; qi++) {
-    const idx = t.indexOf(q[qi], ti)
+    const idx = t.indexOf(q.charAt(qi), ti)
     if (idx === -1) return false
     ti = idx + 1
   }
@@ -53,17 +54,34 @@ const filteredFiles = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full w-full overflow-hidden rounded-2xl bg-elevated">
-    <!-- Toolbar: Gaia logo (when sidebar hidden) + search on left, view selector + add + filter on right -->
-    <div class="flex items-center gap-3 px-4 pt-4 pb-3 shrink-0">
-      <!-- Gaia logo + text - shown when sidebar is hidden, click to show sidebar -->
+  <div class="flex flex-col h-full w-full overflow-hidden rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20 relative">
+    <!-- Coming Soon Overlay -->
+    <div class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-black/60 backdrop-blur-md p-6 text-center">
+      <div class="size-16 rounded-[1.25rem] bg-primary/10 flex items-center justify-center mb-5 ring-1 ring-primary/20">
+        <UIcon name="i-lucide-archive" class="size-8 text-primary" />
+      </div>
+      <h2 class="text-xl font-semibold text-default mb-2">Vault Coming Soon</h2>
+      <p class="text-sm text-dimmed max-w-sm mb-6">
+        We're building a secure, end-to-end encrypted vault to store your agent's confidential files, API keys, and documents.
+      </p>
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+        <UIcon name="i-lucide-rocket" class="size-3.5" />
+        In Development
+      </div>
+    </div>
+
+    <!-- Original Content (Disabled state) -->
+    <div class="flex flex-col h-full w-full opacity-40 pointer-events-none select-none">
+      <!-- Toolbar: Gaia logo (when sidebar hidden) + search on left, view selector + add + filter on right -->
+      <div class="flex items-center gap-3 px-4 pt-4 pb-3 shrink-0">
+      <!-- jellybyte logo + text - shown when sidebar is hidden, click to show sidebar -->
       <button
-        v-if="!sidebarOpen"
+        v-if="sidebarExpanded === false"
         class="flex items-center gap-2 px-4 py-2 shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
         @click="emit('showSidebar')"
       >
         <UIcon name="i-lucide-earth" class="size-5 text-primary" />
-        <span class="font-bold text-sm tracking-tight">Gaia</span>
+        <span class="font-bold text-sm tracking-tight">jellybyte</span>
       </button>
 
       <!-- Search - fills remaining space on left -->
@@ -190,6 +208,7 @@ const filteredFiles = computed(() => {
       >
         No files match your search.
       </p>
+    </div>
     </div>
   </div>
 </template>

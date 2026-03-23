@@ -100,9 +100,9 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 </script>
 
 <template>
-  <div class="h-full w-full rounded-2xl bg-elevated overflow-hidden flex flex-col">
+  <div class="h-full w-full rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden flex flex-col shadow-lg dark:shadow-xl dark:shadow-black/20">
     <!-- Header -->
-    <div class="px-6 py-5 border-b border-muted flex items-center justify-between gap-3">
+    <div class="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-semibold text-default leading-tight">Dashboard</h1>
         <p class="text-xs text-dimmed">Your workflows, automations, and CRON jobs</p>
@@ -141,7 +141,7 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
           <div
             v-for="wf in workflows"
             :key="wf.id"
-            class="group relative text-left rounded-2xl bg-default/50 hover:bg-default/70 border border-transparent hover:border-muted transition-all p-4 cursor-pointer"
+            class="group relative text-left rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.06] hover:border-primary/20 transition-all p-4 cursor-pointer"
             @click="renamingId !== wf.id && emit('openWorkflow', wf.id, wf.title)"
           >
             <div class="flex items-start justify-between gap-2">

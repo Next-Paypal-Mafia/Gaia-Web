@@ -5,23 +5,23 @@ let _isLoggedIn: Ref<boolean> | null = null
 
 export function useSettings() {
   if (!_username) {
-    _username = ref(import.meta.client ? (localStorage.getItem('gaia:username') ?? 'User') : 'User')
+    _username = ref(import.meta.client ? (localStorage.getItem('jellybyte:username') ?? 'User') : 'User')
     if (import.meta.client) {
-      watch(_username, (val) => localStorage.setItem('gaia:username', val))
+      watch(_username, (val) => localStorage.setItem('jellybyte:username', val))
     }
   }
 
   if (!_profilePicture) {
-    _profilePicture = ref(import.meta.client ? (localStorage.getItem('gaia:profilePicture') ?? '') : '')
+    _profilePicture = ref(import.meta.client ? (localStorage.getItem('jellybyte:profilePicture') ?? '') : '')
     if (import.meta.client) {
-      watch(_profilePicture, (val) => localStorage.setItem('gaia:profilePicture', val ?? ''))
+      watch(_profilePicture, (val) => localStorage.setItem('jellybyte:profilePicture', val ?? ''))
     }
   }
 
   if (!_isLoggedIn) {
-    _isLoggedIn = ref(import.meta.client ? (localStorage.getItem('gaia:isLoggedIn') === 'true') : false)
+    _isLoggedIn = ref(import.meta.client ? (localStorage.getItem('jellybyte:isLoggedIn') === 'true') : false)
     if (import.meta.client) {
-      watch(_isLoggedIn, (val) => localStorage.setItem('gaia:isLoggedIn', String(val)))
+      watch(_isLoggedIn, (val) => localStorage.setItem('jellybyte:isLoggedIn', String(val)))
     }
   }
 

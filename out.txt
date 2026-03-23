@@ -1,0 +1,1 @@
+﻿[36mΓä╣[39m Nuxt Icon server bundle mode is set to [36mlocal[39m

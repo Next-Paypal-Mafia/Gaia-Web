@@ -13,7 +13,7 @@ const viewportRef = ref<HTMLDivElement>()
   <div
     ref="viewportRef"
     class="relative w-full h-full overflow-hidden flex items-center justify-center rounded-2xl transition-colors duration-700"
-    :style="{ backgroundColor: pageBackgroundColor ?? '#0a0a0a' }"
+    :style="{ backgroundColor: pageBackgroundColor ?? '#0d0816' }"
   >
     <!-- Connected with frame -->
     <img

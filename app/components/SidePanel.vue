@@ -8,7 +8,9 @@ interface ChatHistoryItem {
 }
 
 const props = defineProps<{
-  open: boolean
+  /** Full width sidebar with labels; false = icon rail only */
+  expanded: boolean
+  isBrowserView?: boolean
   chatHistory: ChatHistoryItem[]
   activeChatId: string
   activeView: 'dashboard' | 'vault' | 'authentications' | 'profile' | null
@@ -18,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggle: []
+  expand: []
   newChat: []
   selectChat: [id: string]
   selectWorkflow: [id: string, title: string]
@@ -43,6 +46,25 @@ onMounted(() => {
     newChatSelected.value = true
   }
 })
+
+const railChatMenuItems = computed<DropdownMenuItem[]>(() =>
+  props.chatHistory.map(chat => ({
+    label: chat.title,
+    onSelect() {
+      newChatSelected.value = false
+      emit('selectChat', chat.id)
+    },
+  })),
+)
+
+const railWorkflowMenuItems = computed<DropdownMenuItem[]>(() =>
+  props.pinnedWorkflows.map(wf => ({
+    label: wf.title,
+    onSelect() {
+      emit('selectWorkflow', wf.id, wf.title)
+    },
+  })),
+)
 
 // ── Rename chat ───────────────────────────────────────────────────────────────
 const renamingChatId = ref<string | null>(null)
@@ -204,19 +226,168 @@ watch(
 </script>
 
 <template>
-  <aside
-    class="sidebar-aside flex flex-col bg-elevated rounded-2xl overflow-hidden"
-    :class="open ? 'sidebar-open' : 'sidebar-closed'"
+  <div
+    class="relative shrink-0 transition-[width] duration-300 ease-out"
+    :style="{ width: expanded && !isBrowserView ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
   >
-    <div v-show="open" class="flex flex-col h-full w-[280px]">
+    <aside
+      class="sidebar-aside flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50 bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20"
+      :class="[
+        expanded ? 'sidebar-expanded' : 'sidebar-rail',
+        expanded && isBrowserView ? 'shadow-2xl ring-1 ring-black/5 dark:ring-white/10' : ''
+      ]"
+      @mouseenter="isBrowserView && emit('expand')"
+      @mouseleave="isBrowserView && emit('toggle')"
+    >
+    <!-- Icon rail (default) -->
+    <div
+      v-show="!expanded"
+      class="flex flex-col h-full w-full items-center py-2 gap-0.5"
+    >
+      <UTooltip :text="!isBrowserView ? 'Expand sidebar' : 'jellybyte'">
+        <button
+          type="button"
+          class="group/logo flex items-center justify-center size-10 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-default transition-colors mb-2"
+          @click="!isBrowserView && emit('expand')"
+        >
+          <UIcon name="i-lucide-earth" class="size-5 text-primary transition-opacity" :class="!isBrowserView ? 'block group-hover/logo:hidden' : ''" />
+          <UIcon v-if="!isBrowserView" name="i-lucide-panel-left-open" class="size-5 text-primary hidden group-hover/logo:block transition-opacity" />
+        </button>
+      </UTooltip>
+
+      <UTooltip text="Dashboard">
+        <button
+          type="button"
+          class="sidebar-rail-btn"
+          :class="isNavActive('dashboard') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          @click="emit('selectView', 'dashboard')"
+        >
+          <UIcon name="i-lucide-layout-dashboard" class="size-[18px]" />
+        </button>
+      </UTooltip>
+
+      <UTooltip text="New chat">
+        <button
+          type="button"
+          class="sidebar-rail-btn"
+          :class="isNewChatActive ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          @click="() => { newChatSelected = true; emit('newChat') }"
+        >
+          <UIcon name="i-lucide-square-pen" class="size-[18px]" />
+        </button>
+      </UTooltip>
+
+      <UTooltip text="Search">
+        <button
+          type="button"
+          class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+          @click="searchOpen = true"
+        >
+          <UIcon name="i-lucide-search" class="size-[18px]" />
+        </button>
+      </UTooltip>
+
+      <UTooltip text="Vault">
+        <button
+          type="button"
+          class="sidebar-rail-btn"
+          :class="isNavActive('vault') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          @click="emit('selectView', 'vault')"
+        >
+          <UIcon name="i-lucide-archive" class="size-[18px]" />
+        </button>
+      </UTooltip>
+
+      <UTooltip text="Authentications">
+        <button
+          type="button"
+          class="sidebar-rail-btn"
+          :class="isNavActive('authentications') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          @click="emit('selectView', 'authentications')"
+        >
+          <UIcon name="i-lucide-key-round" class="size-[18px]" />
+        </button>
+      </UTooltip>
+
+      <UDropdownMenu
+        :items="railChatMenuItems"
+        :content="{ align: 'start', side: 'right' }"
+        :disabled="!chatHistory.length"
+      >
+        <button
+          type="button"
+          title="Chats"
+          class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] disabled:opacity-40"
+          :disabled="!chatHistory.length"
+        >
+          <UIcon name="i-lucide-messages-square" class="size-[18px]" />
+        </button>
+      </UDropdownMenu>
+
+      <UDropdownMenu
+        :items="railWorkflowMenuItems"
+        :content="{ align: 'start', side: 'right' }"
+        :disabled="!pinnedWorkflows.length"
+      >
+        <button
+          type="button"
+          title="Workflows"
+          class="sidebar-rail-btn text-muted hover:bg-white/[0.06] disabled:opacity-40"
+          :disabled="!pinnedWorkflows.length"
+        >
+          <UIcon name="i-lucide-layers" class="size-[18px]" />
+        </button>
+      </UDropdownMenu>
+
+      <div class="flex-1 min-h-2" />
+
+      <UTooltip v-if="!settings.isLoggedIn.value" text="Log in">
+        <button
+          type="button"
+          class="sidebar-rail-btn text-primary hover:bg-primary/10"
+          @click="settingsOpen = true"
+        >
+          <UIcon name="i-lucide-log-in" class="size-[18px]" />
+        </button>
+      </UTooltip>
+      <UTooltip v-else text="Profile">
+        <button
+          type="button"
+          class="sidebar-rail-btn p-0 overflow-hidden ring-1 ring-transparent hover:ring-primary/40"
+          :class="isNavActive('profile') ? 'ring-primary/50' : ''"
+          @click="emit('selectView', 'profile')"
+        >
+          <div
+            v-if="settings.profilePicture.value"
+            class="size-8 rounded-lg overflow-hidden"
+          >
+            <img
+              :src="settings.profilePicture.value"
+              :alt="settings.username.value"
+              class="size-full object-cover"
+            />
+          </div>
+          <div
+            v-else
+            class="size-8 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
+            style="background: linear-gradient(135deg, var(--ui-color-primary-400), var(--ui-color-primary-600))"
+          >
+            {{ initials }}
+          </div>
+        </button>
+      </UTooltip>
+    </div>
+
+    <div v-show="expanded" class="flex flex-col h-full w-[280px]">
       <!-- Header -->
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-earth" class="size-5 text-primary" />
-          <span class="font-bold text-sm tracking-tight">Gaia</span>
+          <span class="font-bold text-sm tracking-tight">jellybyte</span>
           <span class="text-[9px] font-bold tracking-wider uppercase px-1.5 py-px rounded-full bg-primary/10 text-primary leading-tight">Beta</span>
         </div>
         <UButton
+          v-if="!isBrowserView"
           icon="i-lucide-panel-left-close"
           variant="ghost"
           size="xs"
@@ -230,7 +401,7 @@ watch(
         <!-- Dashboard -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('dashboard') ? 'bg-default/80' : 'hover:bg-default/60'"
+          :class="isNavActive('dashboard') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
           @click="emit('selectView', 'dashboard')"
         >
           <UIcon
@@ -244,7 +415,7 @@ watch(
         <!-- New Chat -->
         <button
           class="group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-default transition-colors text-left"
-          :class="isNewChatActive ? 'bg-default/80' : 'hover:bg-default/60'"
+          :class="isNewChatActive ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
           @click="() => { newChatSelected = true; emit('newChat') }"
         >
           <UIcon
@@ -257,7 +428,7 @@ watch(
 
         <!-- Search (overlay only — doesn't change active page) -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left hover:bg-default/60"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
           @click="searchOpen = true"
         >
           <UIcon
@@ -270,7 +441,7 @@ watch(
         <!-- Vault -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('vault') ? 'bg-default/80' : 'hover:bg-default/60'"
+          :class="isNavActive('vault') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
           @click="emit('selectView', 'vault')"
         >
           <UIcon
@@ -285,7 +456,7 @@ watch(
         <!-- Authentications -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('authentications') ? 'bg-default/80' : 'hover:bg-default/60'"
+          :class="isNavActive('authentications') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
           @click="emit('selectView', 'authentications')"
         >
           <UIcon
@@ -307,8 +478,8 @@ watch(
             :key="chat.id"
             class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
             :class="chat.id === activeChatId && activeView === null && activeWorkflowId === null
-              ? 'bg-default/80 text-default'
-              : 'text-muted hover:bg-default/40 hover:text-default'"
+              ? 'bg-primary/10 text-default'
+              : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-default'"
             @click="() => { newChatSelected = false; emit('selectChat', chat.id) }"
           >
             <!-- selecting a chat clears New Chat selection -->
@@ -352,7 +523,7 @@ watch(
             v-for="wf in pinnedWorkflows"
             :key="`pinned-${wf.id}`"
             class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
-            :class="wf.id === activeWorkflowId ? 'bg-default/80 text-default' : 'text-muted hover:bg-default/40 hover:text-default'"
+            :class="wf.id === activeWorkflowId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-default'"
             @click="emit('selectWorkflow', wf.id, wf.title)"
           >
             <!-- Inline rename -->
@@ -373,25 +544,27 @@ watch(
                 :class="wf.id === activeWorkflowId ? 'text-primary' : 'text-muted'"
               />
               <span class="truncate">{{ wf.title }}</span>
+            </span>
+            <div class="shrink-0 relative flex items-center justify-center size-6 ml-1">
               <UIcon
                 v-if="wf.type === 'cron'"
                 name="i-lucide-timer"
-                class="ml-auto size-3.5 shrink-0 text-muted"
+                class="absolute size-3.5 text-muted transition-opacity group-hover:opacity-0 pointer-events-none"
               />
-            </span>
-            <UDropdownMenu
-              :items="getPinnedMenuItems(wf)"
-              :content="{ align: 'start', side: 'bottom' }"
-            >
-              <UButton
-                icon="i-lucide-ellipsis"
-                variant="ghost"
-                size="xs"
-                color="neutral"
-                class="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity"
-                @click.stop
-              />
-            </UDropdownMenu>
+              <UDropdownMenu
+                :items="getPinnedMenuItems(wf)"
+                :content="{ align: 'start', side: 'bottom' }"
+              >
+                <UButton
+                  icon="i-lucide-ellipsis"
+                  variant="ghost"
+                  size="xs"
+                  color="neutral"
+                  class="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity relative z-10"
+                  @click.stop
+                />
+              </UDropdownMenu>
+            </div>
           </div>
         </div>
 
@@ -404,7 +577,7 @@ watch(
       <div class="flex-1" />
 
       <!-- Footer: Login/Signup or Profile -->
-      <div class="shrink-0 px-2 py-2 border-t border-muted">
+      <div class="shrink-0 px-2 py-2 border-t border-black/[0.06] dark:border-white/[0.06]">
         <!-- Logged out: Sign in button -->
         <button
           v-if="!settings.isLoggedIn.value"
@@ -419,7 +592,7 @@ watch(
         <button
           v-else
           class="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left"
-          :class="isNavActive('profile') ? 'bg-default/80' : 'hover:bg-default/60'"
+          :class="isNavActive('profile') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
           @click="emit('selectView', 'profile')"
         >
           <div
@@ -442,55 +615,56 @@ watch(
           <span class="text-sm text-default truncate">{{ settings.username.value }}</span>
         </button>
       </div>
-
-      <SettingsModal v-model:open="settingsOpen" />
-      <SearchModal
-        v-model:open="searchOpen"
-        :chat-history="chatHistory"
-        :workflows="pinnedWorkflows"
-        :active-chat-id="activeChatId"
-        @select-chat="emit('selectChat', $event)"
-        @select-workflow="(id: string) => { const wf = pinnedWorkflows.find(w => w.id === id); if (wf) emit('selectWorkflow', wf.id, wf.title) }"
-      />
-
-      <!-- Confirm delete modal -->
-      <UModal
-        :open="!!deletingWorkflow"
-        @update:open="(val: boolean) => { if (!val) deletingWorkflow = null }"
-        :ui="{ content: 'max-w-sm', body: 'p-0 sm:p-0', header: 'hidden', footer: 'hidden' }"
-      >
-        <template #body>
-          <div class="p-6 text-center space-y-4">
-            <div class="mx-auto size-12 rounded-2xl bg-error/10 flex items-center justify-center">
-              <UIcon name="i-lucide-trash-2" class="size-6 text-error" />
-            </div>
-            <div>
-              <p class="text-base font-semibold text-default">Delete workflow?</p>
-              <p class="text-sm text-dimmed mt-1">
-                <span class="font-medium text-default">"{{ deletingWorkflow?.title }}"</span>
-                will be permanently deleted. This can't be undone.
-              </p>
-            </div>
-            <div class="flex items-center justify-center gap-3">
-              <UButton
-                variant="soft"
-                color="neutral"
-                @click="deletingWorkflow = null"
-              >
-                Cancel
-              </UButton>
-              <UButton
-                color="error"
-                @click="confirmWorkflowDelete"
-              >
-                Delete
-              </UButton>
-            </div>
-          </div>
-        </template>
-      </UModal>
     </div>
-  </aside>
+
+    <SettingsModal v-model:open="settingsOpen" />
+    <SearchModal
+      v-model:open="searchOpen"
+      :chat-history="chatHistory"
+      :workflows="pinnedWorkflows"
+      :active-chat-id="activeChatId"
+      @select-chat="emit('selectChat', $event)"
+      @select-workflow="(id: string) => { const wf = pinnedWorkflows.find(w => w.id === id); if (wf) emit('selectWorkflow', wf.id, wf.title) }"
+    />
+
+    <!-- Confirm delete modal -->
+    <UModal
+      :open="!!deletingWorkflow"
+      @update:open="(val: boolean) => { if (!val) deletingWorkflow = null }"
+      :ui="{ content: 'max-w-sm', body: 'p-0 sm:p-0', header: 'hidden', footer: 'hidden' }"
+    >
+      <template #body>
+        <div class="p-6 text-center space-y-4">
+          <div class="mx-auto size-12 rounded-2xl bg-error/10 flex items-center justify-center">
+            <UIcon name="i-lucide-trash-2" class="size-6 text-error" />
+          </div>
+          <div>
+            <p class="text-base font-semibold text-default">Delete workflow?</p>
+            <p class="text-sm text-dimmed mt-1">
+              <span class="font-medium text-default">"{{ deletingWorkflow?.title }}"</span>
+              will be permanently deleted. This can't be undone.
+            </p>
+          </div>
+          <div class="flex items-center justify-center gap-3">
+            <UButton
+              variant="soft"
+              color="neutral"
+              @click="deletingWorkflow = null"
+            >
+              Cancel
+            </UButton>
+            <UButton
+              color="error"
+              @click="confirmWorkflowDelete"
+            >
+              Delete
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+    </aside>
+  </div>
 </template>
 
 <style scoped>
@@ -502,17 +676,28 @@ watch(
     opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
     margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar-open {
+.sidebar-expanded {
   width: 280px;
   min-width: 280px;
   opacity: 1;
   margin: 0.5rem;
   margin-right: 0;
 }
-.sidebar-closed {
-  width: 0;
-  min-width: 0;
-  opacity: 0;
-  margin: 0;
+.sidebar-rail {
+  width: 4.25rem;
+  min-width: 4.25rem;
+  opacity: 1;
+  margin: 0.5rem;
+  margin-right: 0;
+}
+
+.sidebar-rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 </style>

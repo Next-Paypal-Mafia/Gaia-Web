@@ -43,22 +43,22 @@ function recentThreeIds(items: WorkflowItem[]): string[] {
 
 export function useWorkflows() {
   if (!_workflows) {
-    _workflows = ref<WorkflowItem[]>(
-      loadJSON<WorkflowItem[]>('gaia:workflows', DEFAULT_WORKFLOWS),
-    )
+    _workflows = ref(import.meta.client ?
+      loadJSON<WorkflowItem[]>('jellybyte:workflows', DEFAULT_WORKFLOWS) :
+      DEFAULT_WORKFLOWS)
     if (import.meta.client) {
-      watch(_workflows, v => saveJSON('gaia:workflows', v), { deep: true })
+      watch(_workflows, v => saveJSON('jellybyte:workflows', v), { deep: true })
     }
   }
 
   if (!_pinnedIds) {
-    const stored = loadJSON<string[] | null>('gaia:pinnedWorkflows', null)
-    let initial = stored?.length ? stored : recentThreeIds(_workflows.value)
-    const valid = new Set(_workflows.value.map(w => w.id))
+    const stored = loadJSON<string[] | null>('jellybyte:pinnedWorkflows', null)
+    let initial = stored?.length ? stored : recentThreeIds((_workflows as Ref<WorkflowItem[]>).value)
+    const valid = new Set((_workflows as Ref<WorkflowItem[]>).value.map(w => w.id))
     initial = initial.filter(id => valid.has(id))
     _pinnedIds = ref<string[]>(initial)
     if (import.meta.client) {
-      watch(_pinnedIds, v => saveJSON('gaia:pinnedWorkflows', v), { deep: true })
+      watch(_pinnedIds, v => saveJSON('jellybyte:pinnedWorkflows', v), { deep: true })
     }
   }
 

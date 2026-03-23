@@ -4,7 +4,17 @@ const settings = useSettings()
 const toast = useToast()
 
 type Page = 'main' | 'login' | 'signup' | 'verify'
+const transitionName = ref('slide-left')
 const currentPage = ref<Page>('main')
+
+function setPage(page: Page) {
+  if (page === 'main' || (currentPage.value === 'signup' && page === 'login') || (currentPage.value === 'verify' && page === 'login')) {
+    transitionName.value = 'slide-right'
+  } else {
+    transitionName.value = 'slide-left'
+  }
+  currentPage.value = page
+}
 
 const loginEmail = ref('')
 const loginPassword = ref('')
@@ -44,7 +54,7 @@ watch(open, async (val) => {
     }
   } else {
     setTimeout(() => {
-      currentPage.value = 'main'
+      setPage('main')
       resetForms()
     }, 250)
   }
@@ -66,12 +76,12 @@ function resetForms() {
 
 function openLogin() {
   resetForms()
-  currentPage.value = 'login'
+  setPage('login')
 }
 
 function openSignup() {
   resetForms()
-  currentPage.value = 'signup'
+  setPage('signup')
 }
 
 async function handleLogin() {
@@ -86,7 +96,7 @@ async function handleLogin() {
     })
     if (error) throw error
     resetForms()
-    currentPage.value = 'main'
+    setPage('main')
   } catch (e: any) {
     loginError.value = e?.message || 'Could not sign in'
   } finally {
@@ -118,10 +128,10 @@ async function handleSignup() {
 
     if (data.session) {
       resetForms()
-      currentPage.value = 'main'
+      setPage('main')
     } else {
       verifyEmail.value = signupEmail.value.trim()
-      currentPage.value = 'verify'
+      setPage('verify')
     }
   } catch (e: any) {
     signupError.value = e?.message || 'Could not create account'
@@ -171,8 +181,7 @@ async function handleGoogleLogin() {
       options: { redirectTo },
     })
     if (error) throw error
-    resetForms()
-    currentPage.value = 'main'
+    // Do not redirect UI manually, let browser navigate
   } catch (e: any) {
     toast.add({
       title: 'Sign in failed',
@@ -180,7 +189,6 @@ async function handleGoogleLogin() {
       color: 'error',
       icon: 'i-lucide-alert-circle',
     })
-  } finally {
     loginLoading.value = false
   }
 }
@@ -196,8 +204,8 @@ async function handleLogout() {
   <UModal
     v-model:open="open"
     :ui="{
-      content: 'max-w-[380px] overflow-hidden',
-      body: 'p-0 sm:p-0',
+      content: 'max-w-[380px] overflow-hidden bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/10 rounded-2xl shadow-2xl',
+      overlay: 'backdrop-blur-md bg-white/40 dark:bg-black/40',
       header: 'hidden',
       footer: 'hidden',
     }"
@@ -205,13 +213,13 @@ async function handleLogout() {
     <template #body>
       <div class="relative overflow-hidden">
         <!-- ═══ MAIN PAGE ═══ -->
-        <Transition name="slide-left">
+        <Transition :name="transitionName">
           <div v-if="currentPage === 'main'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
               <div class="size-9" />
               <span class="font-bold text-base text-default">Settings</span>
               <button
-                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
+                class="size-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-default hover:brightness-125 transition-all"
                 @click="open = false"
               >
                 <UIcon name="i-lucide-x" class="size-[18px]" />
@@ -231,8 +239,7 @@ async function handleLogout() {
               </div>
               <div
                 v-else
-                class="size-[72px] rounded-full flex items-center justify-center mb-3 text-white font-bold text-2xl shrink-0"
-                style="background: linear-gradient(135deg, var(--ui-color-primary-400), var(--ui-color-primary-600))"
+                class="size-[72px] rounded-full flex items-center justify-center mb-3 bg-primary text-white font-bold text-2xl shrink-0"
               >
                 {{ initials }}
               </div>
@@ -241,14 +248,14 @@ async function handleLogout() {
 
               <button
                 v-if="!settings.isLoggedIn.value"
-                class="mt-3 px-5 py-1.5 rounded-full bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors"
+                class="mt-3 px-5 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
                 @click="openLogin"
               >
                 Log in
               </button>
               <button
                 v-else
-                class="mt-3 px-5 py-1.5 rounded-full bg-elevated text-sm font-medium text-muted hover:brightness-125 transition-colors"
+                class="mt-3 px-5 py-1.5 rounded-full bg-black/5 dark:bg-white/10 text-sm font-medium text-muted hover:brightness-125 transition-colors"
                 @click="handleLogout"
               >
                 Log out
@@ -258,7 +265,7 @@ async function handleLogout() {
             <div class="px-4 pb-6 space-y-4">
               <div>
                 <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">Account</p>
-                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-muted">
+                <div class="bg-black/[0.02] dark:bg-white/[0.03] rounded-xl overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.06] border border-black/[0.06] dark:border-white/10">
                   <div class="flex items-center justify-between px-4 py-3">
                     <div class="flex items-center gap-3">
                       <UIcon name="i-lucide-user" class="size-4 text-muted shrink-0" />
@@ -284,13 +291,23 @@ async function handleLogout() {
 
               <div>
                 <p class="text-xs font-medium text-dimmed px-1 mb-1.5 uppercase tracking-wide">App</p>
-                <div class="bg-elevated rounded-xl overflow-hidden divide-y divide-muted">
-                  <div class="flex items-center justify-between px-4 py-3">
-                    <div class="flex items-center gap-3">
-                      <UIcon name="i-lucide-moon" class="size-4 text-muted shrink-0" />
+                <div class="bg-black/[0.02] dark:bg-white/[0.03] rounded-xl overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.06] border border-black/[0.06] dark:border-white/10">
+                  <div class="flex items-center justify-between px-4 py-3 gap-3">
+                    <div class="flex items-center gap-3 shrink-0">
+                      <UIcon name="i-lucide-palette" class="size-4 text-muted shrink-0" />
                       <span class="text-sm text-default">Appearance</span>
                     </div>
-                    <span class="text-sm text-dimmed">System</span>
+                    <ClientOnly>
+                      <UColorModeSelect
+                        size="xs"
+                        variant="ghost"
+                        color="neutral"
+                        :ui="{ base: 'text-sm text-dimmed' }"
+                      />
+                      <template #fallback>
+                        <span class="text-sm text-dimmed">System</span>
+                      </template>
+                    </ClientOnly>
                   </div>
                 </div>
               </div>
@@ -299,12 +316,12 @@ async function handleLogout() {
         </Transition>
 
         <!-- ═══ LOGIN PAGE ═══ -->
-        <Transition name="slide-right">
+        <Transition :name="transitionName">
           <div v-if="currentPage === 'login'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
               <button
-                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
-                @click="currentPage = 'main'"
+                class="size-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-default hover:brightness-125 transition-all"
+                @click="setPage('main')"
               >
                 <UIcon name="i-lucide-chevron-left" class="size-[18px]" />
               </button>
@@ -356,7 +373,7 @@ async function handleLogout() {
               </p>
 
               <button
-                class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
+                class="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 :disabled="loginLoading || !loginEmail.trim() || !loginPassword"
                 @click="handleLogin"
               >
@@ -364,13 +381,13 @@ async function handleLogout() {
               </button>
 
               <div class="flex items-center gap-3">
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <div class="flex-1 h-px bg-black/[0.08] dark:bg-white/[0.08]" />
                 <span class="text-xs text-dimmed">or</span>
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <div class="flex-1 h-px bg-black/[0.08] dark:bg-white/[0.08]" />
               </div>
 
               <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50"
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/10 text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50 border border-black/[0.06] dark:border-white/10"
                 :disabled="loginLoading"
                 @click="handleGoogleLogin"
               >
@@ -394,12 +411,12 @@ async function handleLogout() {
         </Transition>
 
         <!-- ═══ SIGNUP PAGE ═══ -->
-        <Transition name="slide-right">
+        <Transition :name="transitionName">
           <div v-if="currentPage === 'signup'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
               <button
-                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
-                @click="currentPage = 'login'"
+                class="size-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-default hover:brightness-125 transition-all"
+                @click="setPage('login')"
               >
                 <UIcon name="i-lucide-chevron-left" class="size-[18px]" />
               </button>
@@ -481,7 +498,7 @@ async function handleLogout() {
               </p>
 
               <button
-                class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
+                class="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 :disabled="signupLoading || !signupEmail.trim() || !signupPassword || signupPassword !== signupConfirmPassword"
                 @click="handleSignup"
               >
@@ -489,13 +506,13 @@ async function handleLogout() {
               </button>
 
               <div class="flex items-center gap-3">
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <div class="flex-1 h-px bg-black/[0.08] dark:bg-white/[0.08]" />
                 <span class="text-xs text-dimmed">or</span>
-                <div class="flex-1 h-px bg-[var(--ui-border-muted)]" />
+                <div class="flex-1 h-px bg-black/[0.08] dark:bg-white/[0.08]" />
               </div>
 
               <button
-                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-elevated text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50"
+                class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/10 text-sm font-medium text-default hover:brightness-125 transition-all disabled:opacity-50 border border-black/[0.06] dark:border-white/10"
                 :disabled="signupLoading"
                 @click="handleGoogleLogin"
               >
@@ -519,12 +536,12 @@ async function handleLogout() {
         </Transition>
 
         <!-- ═══ EMAIL VERIFICATION PAGE ═══ -->
-        <Transition name="slide-right">
+        <Transition :name="transitionName">
           <div v-if="currentPage === 'verify'" class="flex flex-col max-h-[80vh] overflow-y-auto">
             <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
               <button
-                class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all"
-                @click="currentPage = 'login'"
+                class="size-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-default hover:brightness-125 transition-all"
+                @click="setPage('login')"
               >
                 <UIcon name="i-lucide-chevron-left" class="size-[18px]" />
               </button>
@@ -545,14 +562,14 @@ async function handleLogout() {
 
               <div class="mt-6 space-y-3 w-full max-w-[240px]">
                 <button
-                  class="w-full py-2.5 rounded-xl bg-[var(--ui-color-primary-500)] text-white text-sm font-medium hover:bg-[var(--ui-color-primary-600)] transition-colors disabled:opacity-50"
+                  class="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                   :disabled="resendLoading"
                   @click="handleResendVerification"
                 >
                   {{ resendLoading ? 'Sending...' : 'Resend email' }}
                 </button>
                 <button
-                  class="w-full py-2 rounded-xl bg-elevated text-sm font-medium text-muted hover:brightness-125 transition-colors"
+                  class="w-full py-2 rounded-xl bg-black/5 dark:bg-white/10 text-sm font-medium text-muted hover:brightness-125 transition-colors"
                   @click="openLogin"
                 >
                   Back to log in
@@ -590,7 +607,7 @@ async function handleLogout() {
 }
 
 .slide-right-enter-from {
-  transform: translateX(100%);
+  transform: translateX(-100%);
   opacity: 0;
 }
 .slide-right-leave-to {
