@@ -9,9 +9,9 @@ const agent = useOpenCodeAgent()
 let tilingAnimTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
-  const apiUrl = config.public.agentApiUrl
+  const apiUrl = config.public.serverUrl
   if (!apiUrl) {
-    console.warn('[Gaia] NUXT_PUBLIC_AGENT_API_URL is not set — skipping session creation')
+    console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
     return
   }
 
@@ -346,214 +346,141 @@ function onSendInstruction(text: string) {
 </script>
 
 <template>
-  <div class="h-screen flex bg-default overflow-hidden relative">
-    <!-- Jellyfish ambient glow orbs -->
-    <div class="jelly-orbs">
-      <div class="jelly-orb jelly-orb--1" />
-      <div class="jelly-orb jelly-orb--2" />
-      <div class="jelly-orb jelly-orb--3" />
-    </div>
-    <!-- Left side panel -->
-    <SidePanel
-      :expanded="sidebarExpanded"
-      :is-browser-view="hoverSidebarActive"
-      :chat-history="chatsWithMessages"
-      :active-chat-id="activeChatId"
-      :active-view="activeView"
-      :active-workflow-id="activeWorkflowId"
-      :pinned-workflows="wf.pinnedWorkflows.value"
-      @toggle="sidebarExpanded = false"
-      @expand="sidebarExpanded = true"
-      @new-chat="onNewChat"
-      @select-chat="onSelectChat"
-      @select-workflow="onSelectWorkflow"
-      @select-view="onSelectView"
-      @rename-chat="onRenameChat"
-      @delete-chat="onDeleteChat"
-      @toggle-pin-workflow="onTogglePinWorkflow"
-      @rename-workflow="onRenameWorkflow"
-      @delete-workflow="onDeleteWorkflow"
-    />
+<div class="h-screen flex bg-default overflow-hidden relative">
+  <!-- Jellyfish ambient glow orbs -->
+  <div class="jelly-orbs">
+    <div class="jelly-orb jelly-orb--1" />
+    <div class="jelly-orb jelly-orb--2" />
+    <div class="jelly-orb jelly-orb--3" />
+  </div>
+  <!-- Left side panel -->
+  <SidePanel :expanded="sidebarExpanded" :is-browser-view="hoverSidebarActive" :chat-history="chatsWithMessages"
+    :active-chat-id="activeChatId" :active-view="activeView" :active-workflow-id="activeWorkflowId"
+    :pinned-workflows="wf.pinnedWorkflows.value" @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true"
+    @new-chat="onNewChat" @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
+    @rename-chat="onRenameChat" @delete-chat="onDeleteChat" @toggle-pin-workflow="onTogglePinWorkflow"
+    @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
 
-    <!-- Right side -->
-    <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
-      <!-- ═══ Landing / Welcome page ═══ -->
-      <Transition name="landing-leave">
-        <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
-          <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
-            <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
-              <UIcon name="i-lucide-earth" class="size-8 text-primary" />
-            </div>
-            <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">Welcome to jellybyte</h1>
-            <p class="text-sm text-muted mb-8">Describe a task and I'll browse the web for you.</p>
+  <!-- Right side -->
+  <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
+    <!-- ═══ Landing / Welcome page ═══ -->
+    <Transition name="landing-leave">
+      <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
+        <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
+          <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+            <UIcon name="i-lucide-earth" class="size-8 text-primary" />
+          </div>
+          <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">Welcome to jellybyte</h1>
+          <p class="text-sm text-muted mb-8">Describe a task and I'll browse the web for you.</p>
 
-            <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
-              <div class="relative group">
-                <UTextarea
-                  v-model="landingInput"
-                  :placeholder="agent.isAgentRunning.value && !isViewingStreamingChat ? 'Agent is busy in another chat...' : 'Ask jellybyte to do something...'"
-                  :disabled="agent.isAgentRunning.value && !isViewingStreamingChat"
-                  autoresize
-                  :rows="2"
-                  :maxrows="5"
-                  size="lg"
-                  class="w-full landing-input landing-glass-input"
-                  @keydown.enter.exact.prevent="onLandingSend()"
-                />
-                <button
-                  type="submit"
-                  :disabled="!landingInput.trim() || (agent.isAgentRunning.value && !isViewingStreamingChat)"
-                  class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95"
-                >
-                  <UIcon name="i-lucide-arrow-up" class="size-4" />
-                </button>
-              </div>
-            </form>
-
-            <div class="flex flex-wrap justify-center gap-2 mt-6">
-              <button
-                v-for="s in suggestions"
-                :key="s"
-                class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/[0.04] hover:bg-default/80 dark:hover:bg-white/[0.08] transition-all border border-default/40 dark:border-white/[0.08] hover:border-primary/30 active:scale-[0.97]"
-                :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value && !isViewingStreamingChat }"
-                @click="onLandingSend(s)"
-              >
-                {{ s }}
+          <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
+            <div class="relative group">
+              <UTextarea v-model="landingInput"
+                :placeholder="agent.isAgentRunning.value && !isViewingStreamingChat ? 'Agent is busy in another chat...' : 'Ask jellybyte to do something...'"
+                :disabled="agent.isAgentRunning.value && !isViewingStreamingChat" autoresize :rows="2" :maxrows="5"
+                size="lg" class="w-full landing-input landing-glass-input"
+                @keydown.enter.exact.prevent="onLandingSend()" />
+              <button type="submit"
+                :disabled="!landingInput.trim() || (agent.isAgentRunning.value && !isViewingStreamingChat)"
+                class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
+                <UIcon name="i-lucide-arrow-up" class="size-4" />
               </button>
             </div>
+          </form>
 
-            <p class="text-[11px] text-dimmed mt-8">
-              jellybyte can make mistakes. Verify important information.
-            </p>
+          <div class="flex flex-wrap justify-center gap-2 mt-6">
+            <button v-for="s in suggestions" :key="s"
+              class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
+              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value && !isViewingStreamingChat }"
+              @click="onLandingSend(s)">
+              {{ s }}
+            </button>
           </div>
-        </div>
-      </Transition>
 
-      <!-- ═══ Browser + Chat / Other panels ═══ -->
-      <template v-if="!showLanding">
-        <!-- Main content area -->
-        <div class="flex-1 min-h-0 mx-2 relative overflow-hidden flex flex-col">
-          <!-- Browser view: viewport + agent (chat lives in agent panel as glass carousel); input fixed below -->
-          <Transition name="browser-reveal">
-            <div
-              v-show="isBrowserView"
-              class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10"
-            >
-              <div class="flex-1 min-h-0 relative overflow-hidden">
-                <div
-                  class="absolute inset-0 browser-grid"
-                  :class="[
-                    sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
-                    tilingAnimActive ? 'browser-grid--tiling' : '',
-                  ]"
-                >
-                  <!-- Viewport tile -->
-                  <div class="browser-grid__viewport min-h-0">
-                    <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
-                      <BrowserViewport
-                        class="flex-1 min-h-0"
-                        :frame="screencast.currentFrame.value"
-                        :is-connected="screencast.isStreaming.value"
-                        :is-loading="false"
-                        :page-background-color="screencast.pageBackgroundColor.value"
-                      />
-                      <div class="absolute bottom-2.5 left-2.5">
-                        <span
-                          v-if="screencast.isStreaming.value"
-                          class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full"
-                        >
-                          <span class="size-1.5 rounded-full bg-success animate-pulse" />
-                          Live
-                        </span>
-                      </div>
+          <p class="text-[11px] text-dimmed mt-8">
+            jellybyte can make mistakes. Verify important information.
+          </p>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ═══ Browser + Chat / Other panels ═══ -->
+    <template v-if="!showLanding">
+      <!-- Main content area -->
+      <div class="flex-1 min-h-0 mx-2 relative overflow-hidden flex flex-col">
+        <!-- Browser view: viewport + agent (chat lives in agent panel as glass carousel); input fixed below -->
+        <Transition name="browser-reveal">
+          <div v-show="isBrowserView" class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10">
+            <div class="flex-1 min-h-0 relative overflow-hidden">
+              <div class="absolute inset-0 browser-grid" :class="[
+                sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
+                tilingAnimActive ? 'browser-grid--tiling' : '',
+              ]">
+                <!-- Viewport tile -->
+                <div class="browser-grid__viewport min-h-0">
+                  <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
+                    <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
+                      :is-connected="screencast.isStreaming.value" :is-loading="false"
+                      :page-background-color="screencast.pageBackgroundColor.value" />
+                    <div class="absolute bottom-2.5 left-2.5">
+                      <span v-if="screencast.isStreaming.value"
+                        class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full">
+                        <span class="size-1.5 rounded-full bg-success animate-pulse" />
+                        Live
+                      </span>
                     </div>
                   </div>
-
-                  <!-- Agent: thinking + glass chat carousel -->
-                  <div class="browser-grid__activity min-h-0 overflow-hidden">
-                    <Transition name="content-fade" mode="out-in">
-                      <AgentActivity
-                        :key="activeChatId"
-                        :messages="currentMessages"
-                        :status="currentStatus"
-                        :is-agent-running="currentIsRunning"
-                        :is-connected="!!agent.sessionId.value"
-                      />
-                    </Transition>
-                  </div>
                 </div>
-              </div>
 
-              <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
-                <div class="w-full max-w-3xl">
-                  <ChatInput
-                    :is-agent-running="currentIsRunning"
-                    :is-connected="!!agent.sessionId.value"
-                    :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat"
-                    @send="onSendInstruction"
-                    @stop="agent.stop"
-                  />
+                <!-- Agent: thinking + glass chat carousel -->
+                <div class="browser-grid__activity min-h-0 overflow-hidden">
+                  <Transition name="content-fade" mode="out-in">
+                    <AgentActivity :key="activeChatId" :messages="currentMessages" :status="currentStatus"
+                      :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value" />
+                  </Transition>
                 </div>
               </div>
             </div>
-          </Transition>
 
-          <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
-          <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
-            <div
-              v-if="activeView === 'vault'"
-              key="vault"
-              class="absolute inset-0 w-full h-full"
-            >
-              <VaultPanel
-                v-model:open="vaultOpenProxy"
-                :sidebar-expanded="sidebarExpanded"
-                class="h-full rounded-2xl"
-                @show-sidebar="sidebarExpanded = true"
-              />
+            <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
+              <div class="w-full max-w-3xl">
+                <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                  :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
+                  @stop="agent.stop" />
+              </div>
             </div>
-            <div
-              v-else-if="activeView === 'dashboard'"
-              key="dashboard"
-              class="absolute inset-0 w-full h-full"
-            >
-              <DashboardPanel
-                :workflows="wf.workflows.value"
-                :pinned-ids="wf.pinnedIds.value"
-                :can-pin-more="wf.canPinMore.value"
-                @open-workflow="onOpenWorkflowFromDashboard"
-                @create-workflow="onCreateWorkflowFromDashboard"
-                @toggle-pin="onTogglePinWorkflow"
-                @rename-workflow="onRenameWorkflow"
-                @delete-workflow="onDeleteWorkflow"
-              />
-            </div>
-            <div
-              v-else-if="activeView === 'authentications'"
-              key="authentications"
-              class="absolute inset-0 w-full h-full"
-            >
-              <AuthenticationsPanel />
-            </div>
-            <div
-              v-else-if="activeView === 'profile'"
-              key="profile"
-              class="absolute inset-0 w-full h-full overflow-y-auto"
-            >
-              <ProfilePanel @back="activeView = null" />
-            </div>
-            <div
-              v-else-if="activeWorkflowId !== null"
-              :key="`workflow-${activeWorkflowId}`"
-              class="absolute inset-0 w-full h-full"
-            >
-              <WorkflowPanel :workflow-title="activeWorkflowTitle" />
-            </div>
-          </Transition>
-        </div>
-      </template>
-    </div>
+          </div>
+        </Transition>
+
+        <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
+        <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
+          <div v-if="activeView === 'vault'" key="vault" class="absolute inset-0 w-full h-full">
+            <VaultPanel v-model:open="vaultOpenProxy" :sidebar-expanded="sidebarExpanded" class="h-full rounded-2xl"
+              @show-sidebar="sidebarExpanded = true" />
+          </div>
+          <div v-else-if="activeView === 'dashboard'" key="dashboard" class="absolute inset-0 w-full h-full">
+            <DashboardPanel :workflows="wf.workflows.value" :pinned-ids="wf.pinnedIds.value"
+              :can-pin-more="wf.canPinMore.value" @open-workflow="onOpenWorkflowFromDashboard"
+              @create-workflow="onCreateWorkflowFromDashboard" @toggle-pin="onTogglePinWorkflow"
+              @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
+          </div>
+          <div v-else-if="activeView === 'authentications'" key="authentications"
+            class="absolute inset-0 w-full h-full">
+            <AuthenticationsPanel />
+          </div>
+          <div v-else-if="activeView === 'profile'" key="profile"
+            class="absolute inset-0 w-full h-full overflow-y-auto">
+            <ProfilePanel @back="activeView = null" />
+          </div>
+          <div v-else-if="activeWorkflowId !== null" :key="`workflow-${activeWorkflowId}`"
+            class="absolute inset-0 w-full h-full">
+            <WorkflowPanel :workflow-title="activeWorkflowTitle" />
+          </div>
+        </Transition>
+      </div>
+    </template>
   </div>
+</div>
 </template>
 
 <style scoped>
@@ -564,10 +491,12 @@ function onSendInstruction(text: string) {
   border-radius: 1rem !important;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
+
 :global(.dark) .landing-glass-input :deep(textarea) {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
+
 .landing-glass-input :deep(textarea:focus) {
   border-color: var(--ui-color-primary-500) !important;
   box-shadow: 0 0 20px -8px rgba(139, 92, 246, 0.2) !important;
@@ -588,24 +517,35 @@ function onSendInstruction(text: string) {
 }
 
 /* ── Fade ─────────────────────────────────────────────────────────────── */
-.fade-enter-active { transition: opacity 0.35s ease-out; }
-.fade-leave-active { transition: opacity 0.2s ease-in; }
+.fade-enter-active {
+  transition: opacity 0.35s ease-out;
+}
+
+.fade-leave-active {
+  transition: opacity 0.2s ease-in;
+}
+
 .fade-enter-from,
-.fade-leave-to { opacity: 0; }
+.fade-leave-to {
+  opacity: 0;
+}
 
 /* ── Content fade (chat switching) — subtle slide + scale like window swap ── */
 .content-fade-enter-active {
   transition: opacity 0.32s cubic-bezier(0.18, 1, 0.28, 1),
-              transform 0.32s cubic-bezier(0.18, 1, 0.28, 1);
+    transform 0.32s cubic-bezier(0.18, 1, 0.28, 1);
 }
+
 .content-fade-leave-active {
   transition: opacity 0.22s cubic-bezier(0.4, 0, 0.65, 1),
-              transform 0.22s cubic-bezier(0.4, 0, 0.65, 1);
+    transform 0.22s cubic-bezier(0.4, 0, 0.65, 1);
 }
+
 .content-fade-enter-from {
   opacity: 0;
   transform: translateY(12px) scale(0.988);
 }
+
 .content-fade-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.994);
@@ -616,28 +556,37 @@ function onSendInstruction(text: string) {
 .panel-carousel-leave-active {
   transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .panel-carousel-enter-from,
-.panel-carousel-leave-to { opacity: 0; }
+.panel-carousel-leave-to {
+  opacity: 0;
+}
 
 /* ── Landing exit ─────────────────────────────────────────────────────── */
 .landing-leave-leave-active {
   transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.landing-leave-leave-to { opacity: 0; }
+
+.landing-leave-leave-to {
+  opacity: 0;
+}
 
 /* ── Browser reveal: “pop” into tiling workspace (Hyprland-like overshoot) ─ */
 .browser-reveal-enter-active {
   transition: opacity 0.38s cubic-bezier(0.18, 1, 0.28, 1),
-              transform 0.52s cubic-bezier(0.14, 1.18, 0.26, 1);
+    transform 0.52s cubic-bezier(0.14, 1.18, 0.26, 1);
 }
+
 .browser-reveal-leave-active {
   transition: opacity 0.24s cubic-bezier(0.4, 0, 0.7, 1),
-              transform 0.28s cubic-bezier(0.4, 0, 1, 1);
+    transform 0.28s cubic-bezier(0.4, 0, 1, 1);
 }
+
 .browser-reveal-enter-from {
   opacity: 0;
   transform: translateY(36px) scale(0.92);
 }
+
 .browser-reveal-leave-to {
   opacity: 0;
   transform: translateY(16px) scale(0.96);
@@ -651,16 +600,16 @@ function onSendInstruction(text: string) {
   gap: 0.5rem;
   /* Grid tracks interpolate smoothly as “containers” reflow */
   transition: grid-template-columns 0.52s cubic-bezier(0.18, 1, 0.28, 1),
-              grid-template-rows 0.52s cubic-bezier(0.18, 1, 0.28, 1),
-              gap 0.35s cubic-bezier(0.18, 1, 0.28, 1);
+    grid-template-rows 0.52s cubic-bezier(0.18, 1, 0.28, 1),
+    gap 0.35s cubic-bezier(0.18, 1, 0.28, 1);
 }
 
 .browser-grid__viewport,
 .browser-grid__activity {
   transform-origin: center center;
   transition: transform 0.52s cubic-bezier(0.18, 1, 0.28, 1),
-              opacity 0.38s cubic-bezier(0.18, 1, 0.28, 1),
-              filter 0.38s cubic-bezier(0.18, 1, 0.28, 1);
+    opacity 0.38s cubic-bezier(0.18, 1, 0.28, 1),
+    filter 0.38s cubic-bezier(0.18, 1, 0.28, 1);
 }
 
 .browser-grid--tiling .browser-grid__viewport,
@@ -672,6 +621,7 @@ function onSendInstruction(text: string) {
 .browser-grid--tiling .browser-grid__viewport {
   animation: hypr-tile-settle 0.52s cubic-bezier(0.16, 1.1, 0.28, 1) both;
 }
+
 .browser-grid--tiling .browser-grid__activity {
   animation: hypr-tile-settle 0.54s cubic-bezier(0.16, 1.1, 0.28, 1) 0.04s both;
 }
@@ -681,10 +631,12 @@ function onSendInstruction(text: string) {
     transform: translateZ(0) scale(0.985);
     filter: brightness(0.96);
   }
+
   58% {
     transform: translateZ(0) scale(1.008);
     filter: brightness(1.03);
   }
+
   100% {
     transform: translateZ(0) scale(1);
     filter: brightness(1);
@@ -696,27 +648,46 @@ function onSendInstruction(text: string) {
   grid-template-columns: minmax(0, 1fr) 400px;
   grid-template-rows: 1fr;
 }
-.browser-grid--expanded .browser-grid__viewport { grid-row: 1; grid-column: 1; }
-.browser-grid--expanded .browser-grid__activity { grid-row: 1; grid-column: 2; }
+
+.browser-grid--expanded .browser-grid__viewport {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.browser-grid--expanded .browser-grid__activity {
+  grid-row: 1;
+  grid-column: 2;
+}
 
 /* Icon rail: favor browser viewport width */
 .browser-grid--rail {
   grid-template-columns: minmax(0, 1fr) 400px;
   grid-template-rows: 1fr;
 }
-.browser-grid--rail .browser-grid__viewport { grid-row: 1; grid-column: 1; }
-.browser-grid--rail .browser-grid__activity { grid-row: 1; grid-column: 2; }
+
+.browser-grid--rail .browser-grid__viewport {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.browser-grid--rail .browser-grid__activity {
+  grid-row: 1;
+  grid-column: 2;
+}
 
 @media (prefers-reduced-motion: reduce) {
+
   .browser-grid,
   .browser-grid__viewport,
   .browser-grid__activity {
     transition-duration: 0.01ms !important;
   }
+
   .browser-grid--tiling .browser-grid__viewport,
   .browser-grid--tiling .browser-grid__activity {
     animation: none !important;
   }
+
   .content-fade-enter-active,
   .content-fade-leave-active,
   .browser-reveal-enter-active,

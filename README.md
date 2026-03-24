@@ -1,4 +1,4 @@
-# Gaia
+# Jellybyte Web
 
 AI-powered browser agent interface. Chat with an AI agent that controls a remote browser, with a live screencast streamed back to your viewport.
 
