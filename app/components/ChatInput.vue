@@ -1,8 +1,10 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   isAgentRunning: boolean
   isConnected: boolean
   inputLocked?: boolean
+  /** Task-completion survey is open — block sending until user votes */
+  surveyPending?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -10,13 +12,30 @@ const emit = defineEmits<{
   stop: []
 }>()
 
-const input = ref('')
+const input = ref("")
+
+const inputPlaceholder = computed(() => {
+  if (props.surveyPending) return "Answer the quick feedback above to continue chatting..."
+  if (props.inputLocked) return "Agent is busy in another chat..."
+  if (props.isAgentRunning) return "Wait for the reply or stop the agent to send another message..."
+  if (props.isConnected) return "Ask jellybyte to do something..."
+  return "Connect to Chrome first"
+})
 
 function onSubmit() {
+  if (props.surveyPending || props.isAgentRunning || props.inputLocked) return
   const text = input.value.trim()
   if (!text) return
-  emit('send', text)
-  input.value = ''
+  emit("send", text)
+  input.value = ""
+}
+
+function onEnter(e: KeyboardEvent) {
+  if (props.surveyPending || props.isAgentRunning || props.inputLocked) {
+    e.preventDefault()
+    return
+  }
+  onSubmit()
 }
 </script>
 
@@ -26,16 +45,16 @@ function onSubmit() {
       <input
         v-model="input"
         type="text"
-        :placeholder="inputLocked ? 'Agent is busy in another chat...' : isConnected ? 'Ask jellybyte to do something...' : 'Connect to Chrome first'"
-        :disabled="!isConnected || inputLocked"
+        :placeholder="inputPlaceholder"
+        :disabled="!isConnected || surveyPending || inputLocked || isAgentRunning"
         class="flex-1 bg-transparent text-sm text-default placeholder-dimmed outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-        @keydown.enter.exact.prevent="onSubmit"
+        @keydown.enter.exact.prevent="onEnter"
       >
       <div class="shrink-0">
         <button
           v-if="!isAgentRunning"
           type="submit"
-          :disabled="!input.trim() || !isConnected || inputLocked"
+          :disabled="!input.trim() || !isConnected || surveyPending || inputLocked"
           class="size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95"
         >
           <UIcon name="i-lucide-arrow-up" class="size-4" />

@@ -4,6 +4,8 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    Jellyfish / liquid glass — frosted refraction, subtle violet edge bleed
    (fuchsia–pink wash; rim tints kept low for text readability)
+   Jellyfish / liquid glass — frosted refraction, subtle violet edge bleed
+   (fuchsia–pink wash; rim tints kept low for text readability)
    ══════════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
@@ -18,9 +20,27 @@
     --jelly-violet-mid: rgba(217, 70, 239, 0.056);
     --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
     --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
+    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
+    --jelly-orb-1: rgba(232, 121, 249, 0.155);
+    --jelly-orb-2: rgba(244, 114, 182, 0.12);
+    --jelly-orb-3: rgba(124, 58, 237, 0.082);
+    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
+    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
+    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
+    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
+    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
+    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
   }
 
   .dark {
+    --jelly-orb-1: rgba(232, 121, 249, 0.135);
+    --jelly-orb-2: rgba(251, 113, 133, 0.105);
+    --jelly-orb-3: rgba(167, 139, 250, 0.1);
+    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
+    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
+    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
+    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
+    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
     --jelly-orb-1: rgba(232, 121, 249, 0.135);
     --jelly-orb-2: rgba(251, 113, 133, 0.105);
     --jelly-orb-3: rgba(167, 139, 250, 0.1);
@@ -623,6 +643,13 @@
   .glass-jelly::after,
   .jelly-block::after {
     animation: none !important;
+  }
+
+  .glass-jelly,
+  .jelly-block {
+    background-size:
+      100% 100%,
+      100% 100% !important;
   }
 
   .glass-jelly,

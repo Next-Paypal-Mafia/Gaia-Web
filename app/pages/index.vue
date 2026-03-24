@@ -76,7 +76,7 @@ const showLanding = computed(() =>
   isBrowserView.value && currentMessages.value.length === 0 && !browserRevealed.value,
 )
 
-/** Beta task-completion feedback: 10s idle after agent finishes */
+/** Beta task-completion feedback: short delay after agent finishes */
 const taskFeedbackOpen = ref(false)
 let taskFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 const taskFeedbackAssistantId = ref<string | null>(null)
@@ -103,46 +103,44 @@ function lastAssistantMessageId(msgs: UIMessage[]): string | null {
   return null
 }
 
-watch(currentIsRunning, (running, wasRunning) => {
-  clearTaskFeedbackTimer()
-  if (running) {
-    taskFeedbackOpen.value = false
-    return
-  }
-  if (wasRunning !== true) return
-  if (!isBrowserView.value || showLanding.value || !isViewingStreamingChat.value) return
-  if (currentStatus.value !== 'ready') return
-  const msgs = currentMessages.value
-  if (msgs.length === 0) return
-  const aid = lastAssistantMessageId(msgs)
-  if (!aid || dismissedTaskFeedbackAssistantIds.value.has(aid)) return
-
-  taskFeedbackTimer = setTimeout(() => {
-    taskFeedbackTimer = null
-    if (currentIsRunning.value) return
+watch(
+  currentIsRunning,
+  (running, wasRunning) => {
+    if (running) {
+      clearTaskFeedbackTimer()
+      taskFeedbackOpen.value = false
+      return
+    }
+    if (wasRunning !== true) return
     if (!isBrowserView.value || showLanding.value || !isViewingStreamingChat.value) return
     if (currentStatus.value !== 'ready') return
-    const m = currentMessages.value
-    const still = lastAssistantMessageId(m)
-    if (still !== aid) return
-    if (dismissedTaskFeedbackAssistantIds.value.has(aid)) return
-    taskFeedbackAssistantId.value = aid
-    taskFeedbackOpen.value = true
-  }, 10_000)
-})
+    const msgs = currentMessages.value
+    if (msgs.length === 0) return
+    const aid = lastAssistantMessageId(msgs)
+    if (!aid || dismissedTaskFeedbackAssistantIds.value.has(aid)) return
+
+    clearTaskFeedbackTimer()
+    taskFeedbackTimer = setTimeout(() => {
+      taskFeedbackTimer = null
+      if (currentIsRunning.value) return
+      if (!isBrowserView.value || showLanding.value || !isViewingStreamingChat.value) return
+      if (currentStatus.value !== 'ready') return
+      const m = currentMessages.value
+      const still = lastAssistantMessageId(m)
+      if (still !== aid) return
+      if (dismissedTaskFeedbackAssistantIds.value.has(aid)) return
+      taskFeedbackAssistantId.value = aid
+      taskFeedbackOpen.value = true
+    }, 2_500)
+  },
+  { flush: 'post' },
+)
 
 watch([activeChatId, isViewingStreamingChat, isBrowserView, showLanding], () => {
   clearTaskFeedbackTimer()
   taskFeedbackOpen.value = false
   taskFeedbackAssistantId.value = null
 })
-
-function onTaskFeedbackContinue() {
-  const id = taskFeedbackAssistantId.value
-  if (id) dismissTaskFeedbackForAssistant(id)
-  taskFeedbackOpen.value = false
-  taskFeedbackAssistantId.value = null
-}
 
 function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
   const id = taskFeedbackAssistantId.value
@@ -176,11 +174,10 @@ function setActiveChatTitleFromText(text: string) {
 }
 
 function onLandingSend(text?: string) {
+  if (agent.isAgentRunning.value || taskFeedbackOpen.value) return
   const msg = (text ?? landingInput.value).trim()
   if (!msg) return
   clearTaskFeedbackTimer()
-  taskFeedbackOpen.value = false
-  taskFeedbackAssistantId.value = null
   landingInput.value = ''
   browserRevealed.value = true
   setActiveChatTitleFromText(msg)
@@ -415,9 +412,8 @@ function onDeleteChat(id: string) {
 }
 
 function onSendInstruction(text: string) {
+  if (agent.isAgentRunning.value || taskFeedbackOpen.value) return
   clearTaskFeedbackTimer()
-  taskFeedbackOpen.value = false
-  taskFeedbackAssistantId.value = null
   // If sending from a chat that isn't the streaming one, rebind first
   bindAgentToActiveChat()
 
@@ -459,12 +455,12 @@ function onSendInstruction(text: string) {
           <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
             <div class="relative group">
               <UTextarea v-model="landingInput"
-                :placeholder="agent.isAgentRunning.value && !isViewingStreamingChat ? 'Agent is busy in another chat...' : 'Ask jellybyte to do something...'"
-                :disabled="agent.isAgentRunning.value && !isViewingStreamingChat" autoresize :rows="2" :maxrows="5"
+                :placeholder="taskFeedbackOpen ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
+                :disabled="agent.isAgentRunning.value || taskFeedbackOpen" autoresize :rows="2" :maxrows="5"
                 size="lg" class="w-full landing-input landing-glass-input"
                 @keydown.enter.exact.prevent="onLandingSend()" />
               <button type="submit"
-                :disabled="!landingInput.trim() || (agent.isAgentRunning.value && !isViewingStreamingChat)"
+                :disabled="!landingInput.trim() || agent.isAgentRunning.value || taskFeedbackOpen"
                 class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
                 <UIcon name="i-lucide-arrow-up" class="size-4" />
               </button>
@@ -474,7 +470,7 @@ function onSendInstruction(text: string) {
           <div class="flex flex-wrap justify-center gap-2 mt-6">
             <button v-for="s in suggestions" :key="s"
               class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
-              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value && !isViewingStreamingChat }"
+              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || taskFeedbackOpen }"
               @click="onLandingSend(s)">
               {{ s }}
             </button>
@@ -518,8 +514,15 @@ function onSendInstruction(text: string) {
                 <!-- Agent: thinking + glass chat carousel -->
                 <div class="browser-grid__activity min-h-0 overflow-hidden">
                   <Transition name="content-fade" mode="out-in">
-                    <AgentActivity :key="activeChatId" :messages="currentMessages" :status="currentStatus"
-                      :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value" />
+                    <AgentActivity
+                      :key="activeChatId"
+                      v-model:task-feedback-open="taskFeedbackOpen"
+                      :messages="currentMessages"
+                      :status="currentStatus"
+                      :is-agent-running="currentIsRunning"
+                      :is-connected="!!agent.sessionId.value"
+                      @task-feedback-vote="onTaskFeedbackVote"
+                    />
                   </Transition>
                 </div>
               </div>
@@ -528,6 +531,7 @@ function onSendInstruction(text: string) {
             <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
               <div class="w-full max-w-3xl">
                 <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                  :survey-pending="taskFeedbackOpen"
                   :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
                   @stop="agent.stop" />
               </div>
@@ -563,12 +567,7 @@ function onSendInstruction(text: string) {
       </div>
     </template>
   </div>
-
-  <TaskFeedbackModal
-    v-model:open="taskFeedbackOpen"
-    @continue-chat="onTaskFeedbackContinue"
-    @vote="onTaskFeedbackVote"
-  />
+  <BugReportButton />
 </div>
 </template>
 
@@ -588,6 +587,7 @@ function onSendInstruction(text: string) {
 
 .landing-glass-input :deep(textarea:focus) {
   border-color: var(--ui-color-primary-500) !important;
+  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
   box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
 }
 

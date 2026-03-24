@@ -16,6 +16,12 @@ export default defineNuxtConfig({
         process.env.SERVER_URL ||
         "",
     },
+    /** Resend API key for POST /api/bug-report (server-only) */
+    resendApiKey:
+      process.env.NUXT_RESEND_API_KEY || process.env.RESEND_API_KEY || "",
+    /** Verified sender in Resend, e.g. Jellybyte <bugs@yourdomain.com> */
+    bugReportFrom: process.env.NUXT_BUG_REPORT_FROM || "",
+    bugReportTo: process.env.NUXT_BUG_REPORT_TO || "team@jellybyte.io",
   },
 
   supabase: {

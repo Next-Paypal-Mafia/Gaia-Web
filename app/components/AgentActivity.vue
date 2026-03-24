@@ -21,7 +21,14 @@ const props = defineProps<{
   isConnected?: boolean
 }>()
 
+const taskFeedbackOpen = defineModel<boolean>('taskFeedbackOpen', { default: false })
+
+const emit = defineEmits<{
+  taskFeedbackVote: [sentiment: 'positive' | 'negative']
+}>()
+
 const feedContainer = ref<HTMLElement>()
+const taskFeedbackAnchor = ref<HTMLElement | null>(null)
 const expandedSteps = ref<Set<string>>(new Set())
 
 const stepGroups = computed<StepGroup[]>(() => {
@@ -100,12 +107,6 @@ watch(() => stepGroups.value.length, (len, prev) => {
   scrollToBottom()
 }, { immediate: true })
 
-watch(() => props.isAgentRunning, (running, wasRunning) => {
-  if (wasRunning && !running) {
-    expandedSteps.value = new Set()
-  }
-})
-
 function toggleStep(id: string) {
   const s = new Set(expandedSteps.value)
   if (s.has(id)) s.delete(id)
@@ -126,6 +127,14 @@ function scrollToBottom() {
 }
 
 watch(() => props.messages, () => scrollToBottom(), { deep: true })
+
+watch(taskFeedbackOpen, (open) => {
+  if (!open) return
+  nextTick(() => {
+    scrollToBottom()
+    taskFeedbackAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  })
+})
 
 function isToolPart(part: any): boolean {
   return typeof part.type === 'string' && part.type.startsWith('tool-')
@@ -252,6 +261,36 @@ function parseMarkdown(text: string): string {
   }
 }
 
+/** True if parsed HTML has no visible characters (avoids empty “bubbles” after prompt-stripping). */
+function isRenderedHtmlVisuallyEmpty(html: string): boolean {
+  if (typeof document === 'undefined') {
+    const stripped = html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;|&#160;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return stripped.length === 0
+  }
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return (el.textContent ?? '').replace(/\s+/g, '').length === 0
+}
+
+/** Chat strip — text that still shows after cleaning duplicate user prompt from model output */
+function assistantRenderableHtml(part: Record<string, unknown>, msg: UIMessage): string | null {
+  const raw = cleanAssistantText((part as any).text as string | undefined, getPromptForAssistant(msg))
+  if (!raw.trim()) return null
+  const html = parseMarkdown(raw) as string
+  if (isRenderedHtmlVisuallyEmpty(html)) return null
+  return html
+}
+
+function hasRenderableAssistantText(message: UIMessage): boolean {
+  return message.parts.some(
+    p => p.type === 'text' && (p as any).text?.trim() && assistantRenderableHtml(p, message),
+  )
+}
+
 /** Chat strip (same visibility rules as ChatPanel text stream) */
 function hasTextParts(message: UIMessage): boolean {
   return message.parts.some(p => p.type === 'text' && (p as any).text?.trim())
@@ -259,11 +298,60 @@ function hasTextParts(message: UIMessage): boolean {
 
 const latestAssistantHasText = computed(() => {
   const last = [...props.messages].reverse().find(m => m.role === 'assistant')
-  return last ? hasTextParts(last) : false
+  return last ? hasRenderableAssistantText(last) : false
 })
 
-const showWorkingIndicator = computed(() => {
-  return props.isAgentRunning && !latestAssistantHasText.value
+/** Session can go idle before the last assistant text SSE arrives — keep a loader until text lands or timeout. */
+const idleAwaitingFinalReply = ref(false)
+let idleAwaitingFinalReplyTimer: ReturnType<typeof setTimeout> | null = null
+const IDLE_FINAL_REPLY_MAX_MS = 120_000
+
+function clearIdleAwaitingFinalReply() {
+  idleAwaitingFinalReply.value = false
+  if (idleAwaitingFinalReplyTimer !== null) {
+    clearTimeout(idleAwaitingFinalReplyTimer)
+    idleAwaitingFinalReplyTimer = null
+  }
+}
+
+watch(latestAssistantHasText, (has) => {
+  if (has) clearIdleAwaitingFinalReply()
+})
+
+watch(() => props.status, (s) => {
+  if (s === 'error') clearIdleAwaitingFinalReply()
+})
+
+watch(() => props.isAgentRunning, (running, wasRunning) => {
+  if (running) {
+    clearIdleAwaitingFinalReply()
+    return
+  }
+  if (wasRunning === true && !running) {
+    expandedSteps.value = new Set()
+    if (!latestAssistantHasText.value) {
+      idleAwaitingFinalReply.value = true
+      if (idleAwaitingFinalReplyTimer !== null) clearTimeout(idleAwaitingFinalReplyTimer)
+      idleAwaitingFinalReplyTimer = setTimeout(() => {
+        idleAwaitingFinalReplyTimer = null
+        idleAwaitingFinalReply.value = false
+      }, IDLE_FINAL_REPLY_MAX_MS)
+      nextTick(() => scrollToBottom())
+    }
+  }
+})
+
+watch(idleAwaitingFinalReply, (v) => {
+  if (v) nextTick(() => scrollToBottom())
+})
+
+/** Show typing/loading until the assistant message has visible prose (including post-idle gap). */
+const showReplyLoadingIndicator = computed(() => {
+  if (latestAssistantHasText.value) return false
+  if (props.isAgentRunning) return true
+  if (props.status === 'submitted' || props.status === 'streaming') return true
+  if (idleAwaitingFinalReply.value) return true
+  return false
 })
 
 /** One timeline: user prompts + assistant (tools/thinking + replies) in order */
@@ -288,8 +376,16 @@ function isLastAssistantMessage(msg: UIMessage): boolean {
   return !!last && last?.id === msg.id
 }
 
-function textPartsForMessage(msg: UIMessage) {
-  return msg.parts.filter(p => p.type === 'text' && (p as any).text?.trim())
+function renderableAssistantTextBubbles(msg: UIMessage): Array<{ key: string; html: string }> {
+  const out: Array<{ key: string; html: string }> = []
+  let ti = 0
+  for (const part of msg.parts) {
+    if (part.type !== 'text' || !(part as any).text?.trim()) continue
+    const html = assistantRenderableHtml(part, msg)
+    if (html) out.push({ key: `${msg.id}-t-${ti}`, html })
+    ti++
+  }
+  return out
 }
 
 const unifiedSegments = computed<UnifiedSegment[]>(() => {
@@ -308,7 +404,7 @@ const unifiedSegments = computed<UnifiedSegment[]>(() => {
     }
 
     const group = groupMap.get(msg.id) ?? null
-    const text = hasTextParts(msg)
+    const text = hasRenderableAssistantText(msg)
     const lastAsst = isLastAssistantMessage(msg)
     const inProgressShell = props.isAgentRunning && lastAsst && !group && !text
 
@@ -462,30 +558,33 @@ const feedEmpty = computed(
                 </div>
               </div>
 
-              <!-- Assistant text reply -->
+              <!-- Assistant text reply (skip parts that clean down to nothing) -->
               <div
-                v-for="(part, pi) in textPartsForMessage(seg.message)"
-                :key="`${seg.message.id}-t-${pi}`"
+                v-for="bubble in renderableAssistantTextBubbles(seg.message)"
+                :key="bubble.key"
                 class="rounded-2xl rounded-bl-md px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] ring-1 ring-black/[0.06] dark:ring-white/[0.08] text-sm leading-relaxed text-default shadow-sm markdown-body"
-                v-html="parseMarkdown(cleanAssistantText((part as any).text, getPromptForAssistant(seg.message)))"
+                v-html="bubble.html"
               />
 
-              <!-- In-progress: no tools yet, no text -->
+              <!-- Thinking / writing / post-idle gap until assistant prose is visible -->
               <div
-                v-if="isAgentRunning && isLastAssistantMessage(seg.message) && !seg.group && !hasTextParts(seg.message)"
-                class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] text-dimmed text-sm"
+                v-if="showReplyLoadingIndicator && isLastAssistantMessage(seg.message) && !hasRenderableAssistantText(seg.message)"
+                class="flex items-center gap-3 py-2.5 px-3.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] ring-1 ring-black/[0.06] dark:ring-white/[0.08] text-sm text-dimmed"
               >
-                <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin shrink-0" />
-                <span>Thinking&hellip;</span>
-              </div>
-
-              <!-- Typing while tools done / running but no final text yet -->
-              <div
-                v-if="showWorkingIndicator && isLastAssistantMessage(seg.message) && seg.group && !hasTextParts(seg.message)"
-                class="flex items-center gap-2 py-2 px-3 text-xs text-dimmed"
-              >
-                <span class="size-1.5 rounded-full bg-primary animate-pulse shrink-0" />
-                <span>Writing reply&hellip;</span>
+                <template v-if="!seg.group && isAgentRunning">
+                  <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin shrink-0" />
+                  <span class="text-default/90">Thinking&hellip;</span>
+                </template>
+                <template v-else>
+                  <span class="reply-typing" aria-hidden="true">
+                    <span class="reply-typing__dot" />
+                    <span class="reply-typing__dot" />
+                    <span class="reply-typing__dot" />
+                  </span>
+                  <span class="text-default/90">
+                    {{ isAgentRunning ? 'Writing reply' : 'Finishing reply' }}&hellip;
+                  </span>
+                </template>
               </div>
             </div>
           </div>
@@ -517,6 +616,14 @@ const feedEmpty = computed(
             Send a message — replies and browser steps appear in this thread.
           </template>
         </p>
+      </div>
+
+      <!-- Beta feedback — inside scroll area so it stays with the thread -->
+      <div ref="taskFeedbackAnchor" class="pt-1">
+        <TaskFeedbackModal
+          v-model:open="taskFeedbackOpen"
+          @vote="emit('taskFeedbackVote', $event)"
+        />
       </div>
     </div>
   </div>
@@ -613,5 +720,37 @@ const feedEmpty = computed(
 .markdown-body :deep(th), .markdown-body :deep(td) { border: 1px solid rgba(128, 128, 128, 0.2); padding: 0.5em 0.75em; text-align: left; }
 .markdown-body :deep(th) { background-color: rgba(128, 128, 128, 0.1); font-weight: 600; }
 
+.reply-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+.reply-typing__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ui-color-primary-500, #c026d3);
+  opacity: 0.35;
+  animation: reply-typing-bounce 1.25s ease-in-out infinite;
+}
+.reply-typing__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.reply-typing__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes reply-typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
 
 </style>
