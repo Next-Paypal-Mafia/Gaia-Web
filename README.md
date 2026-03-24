@@ -12,6 +12,25 @@ bun install
 cp .env.example .env
 ```
 
+### Environment Variables
+
+Required:
+- `SUPABASE_URL` - Your Supabase project URL
+- `SUPABASE_KEY` - Your Supabase anon key
+- `NUXT_PUBLIC_SERVER_URL` - Agent backend URL (default: `http://localhost:8000`)
+
+Optional (for bug report feature):
+- `NUXT_RESEND_API_KEY` - Resend API key for email functionality
+- `NUXT_BUG_REPORT_FROM` - Verified sender email (e.g., `Jellybyte <bugs@yourdomain.com>`)
+- `NUXT_BUG_REPORT_TO` - Recipient email for bug reports (default: `team@jellybyte.io`)
+
+### Supabase Setup
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Enable Google OAuth in Authentication > Providers
+3. Copy your project URL and anon key to `.env`
+4. (Optional) Set up credential vault using `docs/vault-rpc.sql` for secure password storage
+
 ## Development
 
 ```bash
@@ -48,3 +67,30 @@ app/
 - **Bun** — JavaScript runtime
 - **Supabase** — authentication (Google OAuth)
 - **Tailwind CSS v4** — styling
+
+## API Endpoints
+
+### POST `/api/bug-report`
+
+Submit a bug report via email (requires Resend API configuration).
+
+**Request body:**
+```json
+{
+  "email": "user@example.com",
+  "title": "Bug title (max 200 chars)",
+  "description": "Detailed description (max 8000 chars)"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true
+}
+```
+
+**Error codes:**
+- `400` - Invalid email, title, or description
+- `503` - Bug report email not configured (missing `NUXT_RESEND_API_KEY`)
+- `502` - Failed to send email

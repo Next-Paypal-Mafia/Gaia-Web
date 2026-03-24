@@ -2,19 +2,16 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   ssr: false,
   devtools: { enabled: true },
-  devServer: {
-    port: 3001,
-  },
 
   modules: ["@nuxt/ui", "@nuxtjs/supabase"],
 
   runtimeConfig: {
     public: {
-      /** Agent / OpenCode backend (e.g. http://localhost:8000). Set SERVER_URL or NUXT_PUBLIC_SERVER_URL in .env */
+      /** Agent / OpenCode backend (e.g. http://localhost:8000). Set NUXT_PUBLIC_SERVER_URL in .env */
       serverUrl:
         process.env.NUXT_PUBLIC_SERVER_URL ||
-        process.env.SERVER_URL ||
-        "",
+        process.env.NUXT_SERVER_URL ||
+        process.env.SERVER_URL,
     },
     /** Resend API key for POST /api/bug-report (server-only) */
     resendApiKey:

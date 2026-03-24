@@ -187,11 +187,29 @@ export function useOpenCodeAgent() {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
+    // ── Guest session bootstrap (if unauthenticated) ──────────────────────────
+    if (!token) {
+      try {
+        const bootstrapRes = await fetch(`${_baseUrl}/api/guest/bootstrap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include", // essential to ignore origin rules and ensure Set-Cookie is processed and stored by the browser
+        });
+        if (!bootstrapRes.ok) {
+          console.warn("[useOpenCodeAgent] Guest bootstrap return error status:", bootstrapRes.status);
+          // Allow it to proceed and fail at /sessions if strictly needed, or handle here
+        }
+      } catch (err) {
+        console.warn("[useOpenCodeAgent] Guest bootstrap network error:", err);
+      }
+    }
+
     let res: Response;
     try {
       res = await fetch(`${_baseUrl}/sessions`, {
         method: "POST",
         headers,
+        credentials: token ? "omit" : "include", // Essential for guest sessions
       });
     } catch (err) {
       console.error(
@@ -219,7 +237,9 @@ export function useOpenCodeAgent() {
     const sseUrl = new URL(`${_baseUrl}/sessions/${data.sessionId}/event`);
     if (token) sseUrl.searchParams.set("token", token);
 
-    const es = new EventSource(sseUrl.toString());
+    const es = new EventSource(sseUrl.toString(), {
+      withCredentials: !token, // send guest cookie over cross-origin SSE connection
+    });
     _eventSource = es;
 
     es.onmessage = (e) => {
@@ -253,6 +273,7 @@ export function useOpenCodeAgent() {
         await fetch(`${_baseUrl}/sessions/${sessionId.value}`, {
           method: "DELETE",
           headers,
+          credentials: _token ? "omit" : "include",
         });
       } catch (err) {
         console.warn("[useOpenCodeAgent] Failed to delete session:", err);
@@ -318,6 +339,7 @@ export function useOpenCodeAgent() {
         {
           method: "POST",
           headers,
+          credentials: _token ? "omit" : "include",
           // No model field — server controls the model via opencode.json
           body: JSON.stringify({
             parts: [{ type: "text", text: text.trim() }],
@@ -357,6 +379,7 @@ export function useOpenCodeAgent() {
       await fetch(`${_baseUrl}/sessions/${sessionId.value}/abort`, {
         method: "POST",
         headers,
+        credentials: _token ? "omit" : "include",
       });
     } catch (err) {
       console.warn("[useOpenCodeAgent] Abort request failed:", err);

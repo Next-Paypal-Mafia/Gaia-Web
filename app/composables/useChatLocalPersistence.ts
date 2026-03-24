@@ -62,7 +62,7 @@ export function readChatBootstrap(): Omit<PersistedChatStateV1, "version"> {
 
     const chatHistory = o.chatHistory
       .filter(
-        (c): c is { id: string; title?: string } =>
+        (c): c is { id: string; title: string } =>
           c != null && typeof c.id === "string" && c.id.length > 0,
       )
       .map(c => ({

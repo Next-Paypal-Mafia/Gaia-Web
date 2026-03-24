@@ -6,6 +6,7 @@ import {
   persistChatState,
   readChatBootstrap,
 } from '~/composables/useChatLocalPersistence'
+import { useApiVersion } from '~/composables/useApiVersion'
 
 const config = useRuntimeConfig()
 const supabase = useSupabaseClient()
@@ -21,6 +22,7 @@ const dismissedTaskFeedbackAssistantIds = ref(new Set(boot.dismissedFeedbackIds)
 
 const screencast = useScreencast()
 const agent = useOpenCodeAgent()
+const apiVersion = useApiVersion()
 /** Hydrate agent memory from the restored tab so Activity matches chatSessions (fixes empty panel on reload). */
 agent.resetChat(cloneUIMessages(chatSessions.value[streamingChatId.value] ?? []))
 
@@ -79,7 +81,7 @@ watch(sidebarExpanded, () => {
     tilingAnimTimer = null
   }, 560)
 })
-const activeView = ref<'dashboard' | 'vault' | 'authentications' | 'profile' | null>(null)
+const activeView = ref<"dashboard" | "vault" | "authentications" | "profile" | null>(null)
 const activeWorkflowId = ref<string | null>(null)
 const activeWorkflowTitle = ref<string>('')
 
@@ -144,7 +146,7 @@ function clearTaskFeedbackTimer() {
 function lastAssistantMessageId(msgs: UIMessage[]): string | null {
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i]
-    if (m?.role === 'assistant') return m.id
+    if (m?.role === "assistant") return m.id
   }
   return null
 }
@@ -207,6 +209,18 @@ onMounted(async () => {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
 
+  const { compatible, serverVersion, error } = await apiVersion.checkVersion(apiUrl)
+  if (!compatible) {
+    console.warn(`[jellybyte] API Version Mismatch: expected ${apiVersion.EXPECTED_API_VERSION}, got ${serverVersion}. Error: ${error}`)
+    toast.add({
+      title: 'Backend API Version Mismatch',
+      description: `The server (${serverVersion || 'unknown'}) is incompatible with this client (${apiVersion.EXPECTED_API_VERSION}). Some features may not work.`,
+      icon: 'i-lucide-alert-triangle',
+      color: 'warning',
+      duration: 10000,
+    })
+  }
+
   await agent.connect(apiUrl, token)
 
   if (agent.sessionId.value) {
@@ -225,14 +239,14 @@ onUnmounted(async () => {
 // ── Landing / browser-reveal animation ───────────────────────────────────────
 const landingInput = ref('')
 const suggestions = [
-  'Search for the latest AI news',
-  'Find the best-rated restaurants nearby',
-  'Compare prices for a laptop',
-  'Look up flights from NYC to London',
+  "Search for the latest AI news",
+  "Find the best-rated restaurants nearby",
+  "Compare prices for a laptop",
+  "Look up flights from NYC to London",
 ]
 
 function setActiveChatTitleFromText(text: string) {
-  const title = text.trim().slice(0, 40) || 'New chat'
+  const title = text.trim().slice(0, 40) || "New chat"
   const idx = chatHistory.value.findIndex(c => c.id === activeChatId.value)
   const item = chatHistory.value[idx]
   if (idx !== -1 && item) item.title = title
@@ -270,12 +284,12 @@ watch(
   () => agent.messages.value,
   (messages) => {
     chatSessions.value[streamingChatId.value] = [...messages] as UIMessage[]
-    const firstUser = messages.find((m: any) => m.role === 'user')
-    const firstText = firstUser?.parts?.find((p: any) => p.type === 'text')?.text as string | undefined
+    const firstUser = messages.find((m: any) => m.role === "user")
+    const firstText = firstUser?.parts?.find((p: any) => p.type === "text")?.text as string | undefined
     const idx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
     const item = chatHistory.value[idx]
-    if (firstText && idx !== -1 && item && (item.title === 'New chat' || !item.title.trim())) {
-      item.title = firstText.trim().slice(0, 40) || 'New chat'
+    if (firstText && idx !== -1 && item && (item.title === "New chat" || !item.title.trim())) {
+      item.title = firstText.trim().slice(0, 40) || "New chat"
     }
     schedulePersistChats()
   },
@@ -292,16 +306,16 @@ const chatsWithMessages = computed(() =>
 )
 
 const vaultOpenProxy = computed({
-  get: () => activeView.value === 'vault',
+  get: () => activeView.value === "vault",
   set: (val: boolean) => {
     if (!val) activeView.value = null
   },
 })
 
 function getChatTitle(messages: UIMessage[]): string {
-  const first = messages.find(m => m.role === 'user')
-  if (!first) return 'New chat'
-  const text = first.parts?.find(p => p.type === 'text')?.text || ''
+  const first = messages.find(m => m.role === "user")
+  if (!first) return "New chat"
+  const text = first.parts?.find(p => p.type === "text")?.text || ""
   return text.trim().slice(0, 40) || 'New chat'
 }
 
@@ -541,11 +555,9 @@ function onSendInstruction(text: string) {
             <div class="relative group">
               <UTextarea v-model="landingInput"
                 :placeholder="taskFeedbackOpen ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
-                :disabled="agent.isAgentRunning.value || taskFeedbackOpen" autoresize :rows="2" :maxrows="5"
-                size="lg" class="w-full landing-input landing-glass-input"
-                @keydown.enter.exact.prevent="onLandingSend()" />
-              <button type="submit"
-                :disabled="!landingInput.trim() || agent.isAgentRunning.value || taskFeedbackOpen"
+                :disabled="agent.isAgentRunning.value || taskFeedbackOpen" autoresize :rows="2" :maxrows="5" size="lg"
+                class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
+              <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || taskFeedbackOpen"
                 class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
                 <UIcon name="i-lucide-arrow-up" class="size-4" />
               </button>
@@ -586,10 +598,8 @@ function onSendInstruction(text: string) {
                     <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
                       :is-connected="screencast.isStreaming.value" :is-loading="false"
                       :page-background-color="screencast.pageBackgroundColor.value" />
-                    <div
-                      v-if="liveBrowserMismatch"
-                      class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center"
-                    >
+                    <div v-if="liveBrowserMismatch"
+                      class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center">
                       <UIcon name="i-lucide-monitor-smartphone" class="size-10 text-white/85 shrink-0" />
                       <p class="text-sm font-medium text-white/95 max-w-[18rem] leading-snug">
                         Live browser is tied to
@@ -597,7 +607,8 @@ function onSendInstruction(text: string) {
                         — not this thread.
                       </p>
                       <p class="text-xs text-white/65 max-w-[19rem] leading-relaxed">
-                        The sidebar can show a different chat than the one driving the agent. Open the live thread to align the transcript with what you see here.
+                        The sidebar can show a different chat than the one driving the agent. Open the live thread to
+                        align the transcript with what you see here.
                       </p>
                       <UButton color="primary" class="mt-1" @click="openLiveBrowserChat">
                         Open live chat
@@ -615,14 +626,9 @@ function onSendInstruction(text: string) {
 
                 <!-- Agent: thinking + glass chat carousel -->
                 <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
-                  <AgentActivity
-                    v-model:task-feedback-open="taskFeedbackOpen"
-                    :messages="currentMessages"
-                    :status="currentStatus"
-                    :is-agent-running="currentIsRunning"
-                    :is-connected="!!agent.sessionId.value"
-                    @task-feedback-vote="onTaskFeedbackVote"
-                  />
+                  <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
+                    :status="currentStatus" :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                    @task-feedback-vote="onTaskFeedbackVote" />
                 </div>
               </div>
             </div>
