@@ -1,29 +1,70 @@
 <script setup lang="ts">
 import type { UIMessage } from '~/composables/useOpenCodeAgent'
+import {
+  buildPersistedPayload,
+  cloneUIMessages,
+  persistChatState,
+  readChatBootstrap,
+} from '~/composables/useChatLocalPersistence'
 
 const config = useRuntimeConfig()
 const supabase = useSupabaseClient()
+const toast = useToast()
+
+const boot = readChatBootstrap()
+const activeChatId = ref(boot.activeChatId)
+const streamingChatId = ref(boot.streamingChatId)
+const chatHistory = ref(boot.chatHistory)
+const chatSessions = ref<Record<string, UIMessage[]>>(boot.chatSessions)
+const browserRevealed = ref(boot.browserRevealed)
+const dismissedTaskFeedbackAssistantIds = ref(new Set(boot.dismissedFeedbackIds))
+
 const screencast = useScreencast()
 const agent = useOpenCodeAgent()
+/** Hydrate agent memory from the restored tab so Activity matches chatSessions (fixes empty panel on reload). */
+agent.resetChat(cloneUIMessages(chatSessions.value[streamingChatId.value] ?? []))
 
 let tilingAnimTimer: ReturnType<typeof setTimeout> | null = null
 
-onMounted(async () => {
-  const apiUrl = config.public.serverUrl
-  if (!apiUrl) {
-    console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
-    return
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+function flushPersistChatsSync() {
+  if (!import.meta.client) return
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
   }
+  persistChatState(
+    buildPersistedPayload(
+      chatHistory.value,
+      chatSessions.value,
+      activeChatId.value,
+      streamingChatId.value,
+      browserRevealed.value,
+      Array.from(dismissedTaskFeedbackAssistantIds.value),
+    ),
+  )
+}
+function schedulePersistChats() {
+  if (!import.meta.client) return
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    flushPersistChatsSync()
+  }, 900)
+}
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+watch(
+  () => chatHistory.value,
+  () => schedulePersistChats(),
+  { deep: true },
+)
+watch([activeChatId, streamingChatId, browserRevealed], () => schedulePersistChats())
+watch(
+  () => [...dismissedTaskFeedbackAssistantIds.value].sort().join('\0'),
+  () => schedulePersistChats(),
+)
 
-  await agent.connect(apiUrl, token)
-
-  if (agent.sessionId.value) {
-    screencast.start(apiUrl, agent.sessionId.value, token)
-  }
-})
+const wf = useWorkflows()
 
 /** Full sidebar vs icon rail (default: rail for wider browser viewport) */
 const sidebarExpanded = ref(false)
@@ -41,17 +82,6 @@ watch(sidebarExpanded, () => {
 const activeView = ref<'dashboard' | 'vault' | 'authentications' | 'profile' | null>(null)
 const activeWorkflowId = ref<string | null>(null)
 const activeWorkflowTitle = ref<string>('')
-const activeChatId = ref('chat-1')
-// Tracks which chat currently owns `agent.messages` / the SSE stream.
-// Stays pinned to the originating chat even when the user browses elsewhere.
-const streamingChatId = ref(activeChatId.value)
-const chatHistory = ref([
-  { id: 'chat-1', title: 'New chat' },
-])
-const chatSessions = ref<Record<string, UIMessage[]>>({ 'chat-1': [] })
-
-// Workflows + pins (max 3)
-const wf = useWorkflows()
 
 const isBrowserView = computed(() => activeView.value === null && activeWorkflowId.value === null)
 
@@ -59,7 +89,7 @@ const isBrowserView = computed(() => activeView.value === null && activeWorkflow
 const isViewingStreamingChat = computed(() => activeChatId.value === streamingChatId.value)
 
 const currentMessages = computed<UIMessage[]>(() => {
-  if (isViewingStreamingChat.value) return [...agent.messages.value] as UIMessage[]
+  if (isViewingStreamingChat.value) return agent.messages.value as unknown as UIMessage[]
   return chatSessions.value[activeChatId.value] ?? []
 })
 
@@ -71,7 +101,24 @@ const currentIsRunning = computed(() =>
   isViewingStreamingChat.value && agent.isAgentRunning.value,
 )
 
-const browserRevealed = ref(false)
+/** One agent session + one screencast — viewport follows the “live” chat, not necessarily the selected row */
+const liveBrowserMismatch = computed(
+  () =>
+    !isViewingStreamingChat.value
+    && (agent.isAgentRunning.value || screencast.isStreaming.value),
+)
+
+const streamingChatTitle = computed(() => {
+  const id = streamingChatId.value
+  const item = chatHistory.value.find(c => c.id === id)
+  const t = item?.title?.trim()
+  return t && t.length > 0 ? t : 'another chat'
+})
+
+function openLiveBrowserChat() {
+  onSelectChat(streamingChatId.value)
+}
+
 const showLanding = computed(() =>
   isBrowserView.value && currentMessages.value.length === 0 && !browserRevealed.value,
 )
@@ -80,12 +127,11 @@ const showLanding = computed(() =>
 const taskFeedbackOpen = ref(false)
 let taskFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 const taskFeedbackAssistantId = ref<string | null>(null)
-const dismissedTaskFeedbackAssistantIds = ref<Set<string>>(new Set())
-
 function dismissTaskFeedbackForAssistant(id: string) {
   const next = new Set(dismissedTaskFeedbackAssistantIds.value)
   next.add(id)
   dismissedTaskFeedbackAssistantIds.value = next
+  schedulePersistChats()
 }
 
 function clearTaskFeedbackTimer() {
@@ -148,11 +194,30 @@ function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
   agent.appendBetaFeedback(sentiment)
   taskFeedbackOpen.value = false
   taskFeedbackAssistantId.value = null
+  schedulePersistChats()
 }
+
+onMounted(async () => {
+  const apiUrl = config.public.serverUrl
+  if (!apiUrl) {
+    console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
+    return
+  }
+
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+
+  await agent.connect(apiUrl, token)
+
+  if (agent.sessionId.value) {
+    screencast.start(apiUrl, agent.sessionId.value, token)
+  }
+})
 
 onUnmounted(async () => {
   if (tilingAnimTimer) clearTimeout(tilingAnimTimer)
   clearTaskFeedbackTimer()
+  flushPersistChatsSync()
   screencast.stop()
   await agent.disconnect()
 })
@@ -212,6 +277,7 @@ watch(
     if (firstText && idx !== -1 && item && (item.title === 'New chat' || !item.title.trim())) {
       item.title = firstText.trim().slice(0, 40) || 'New chat'
     }
+    schedulePersistChats()
   },
   { deep: true },
 )
@@ -253,18 +319,39 @@ function bindAgentToActiveChat() {
   chatSessions.value[streamingChatId.value] = agent.getMessages()
   const stored = chatSessions.value[activeChatId.value] ?? []
   streamingChatId.value = activeChatId.value
-  agent.resetChat([...stored])
+  agent.resetChat(cloneUIMessages(stored))
 }
 
+/** If the user picked another chat while a task ran, snap agent + stream owner to the selected row when idle */
+watch(
+  () => agent.isAgentRunning.value,
+  (running, wasRunning) => {
+    if (wasRunning !== true || running) return
+    nextTick(() => {
+      if (activeChatId.value !== streamingChatId.value) {
+        bindAgentToActiveChat()
+      }
+    })
+  },
+  { flush: 'post' },
+)
+
 function onNewChat() {
-  // Snapshot the current agent into its owning chat (only if idle)
-  if (!agent.isAgentRunning.value) {
-    chatSessions.value[streamingChatId.value] = agent.getMessages()
-    const idx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
-    const item = chatHistory.value[idx]
-    if (idx !== -1 && item && agent.getMessages().length > 0) {
-      item.title = getChatTitle(agent.getMessages())
-    }
+  if (agent.isAgentRunning.value) {
+    toast.add({
+      title: 'Wait for the current task',
+      description: 'Stop the agent or let it finish before starting a new chat.',
+      color: 'warning',
+      icon: 'i-lucide-circle-pause',
+    })
+    return
+  }
+
+  chatSessions.value[streamingChatId.value] = agent.getMessages()
+  const snapIdx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
+  const snapItem = chatHistory.value[snapIdx]
+  if (snapIdx !== -1 && snapItem && agent.getMessages().length > 0) {
+    snapItem.title = getChatTitle(agent.getMessages())
   }
 
   const unusedChat = chatHistory.value.find(c =>
@@ -275,10 +362,9 @@ function onNewChat() {
     activeView.value = null
     activeWorkflowId.value = null
     browserRevealed.value = false
-    if (!agent.isAgentRunning.value) {
-      streamingChatId.value = unusedChat.id
-      agent.resetChat()
-    }
+    streamingChatId.value = unusedChat.id
+    agent.resetChat()
+    schedulePersistChats()
     return
   }
 
@@ -289,10 +375,9 @@ function onNewChat() {
   activeView.value = null
   activeWorkflowId.value = null
   browserRevealed.value = false
-  if (!agent.isAgentRunning.value) {
-    streamingChatId.value = newId
-    agent.resetChat()
-  }
+  streamingChatId.value = newId
+  agent.resetChat()
+  schedulePersistChats()
 }
 
 function onSelectChat(id: string) {
@@ -318,8 +403,9 @@ function onSelectChat(id: string) {
   // Rebind the agent only when idle
   if (!agent.isAgentRunning.value) {
     streamingChatId.value = id
-    agent.resetChat([...stored])
+    agent.resetChat(cloneUIMessages(stored))
   }
+  schedulePersistChats()
 }
 
 function onSelectWorkflow(id: string, title: string) {
@@ -350,7 +436,6 @@ function onCreateWorkflowFromDashboard(type: 'workflow' | 'cron') {
 function onTogglePinWorkflow(id: string) {
   const res = wf.togglePin(id)
   if (!res.ok && res.reason === 'limit') {
-    const toast = useToast()
     toast.add({
       title: 'Pin limit reached',
       description: 'You can pin up to 3 workflows in the sidebar.',
@@ -403,7 +488,7 @@ function onDeleteChat(id: string) {
       streamingChatId.value = first.id
       const restored = chatSessions.value[first.id] ?? []
       browserRevealed.value = restored.length > 0
-      agent.resetChat([...restored])
+      agent.resetChat(cloneUIMessages(restored))
     }
     else {
       onNewChat()
@@ -501,6 +586,23 @@ function onSendInstruction(text: string) {
                     <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
                       :is-connected="screencast.isStreaming.value" :is-loading="false"
                       :page-background-color="screencast.pageBackgroundColor.value" />
+                    <div
+                      v-if="liveBrowserMismatch"
+                      class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center"
+                    >
+                      <UIcon name="i-lucide-monitor-smartphone" class="size-10 text-white/85 shrink-0" />
+                      <p class="text-sm font-medium text-white/95 max-w-[18rem] leading-snug">
+                        Live browser is tied to
+                        <span class="text-primary font-semibold">{{ streamingChatTitle }}</span>
+                        — not this thread.
+                      </p>
+                      <p class="text-xs text-white/65 max-w-[19rem] leading-relaxed">
+                        The sidebar can show a different chat than the one driving the agent. Open the live thread to align the transcript with what you see here.
+                      </p>
+                      <UButton color="primary" class="mt-1" @click="openLiveBrowserChat">
+                        Open live chat
+                      </UButton>
+                    </div>
                     <div class="absolute bottom-2.5 left-2.5">
                       <span v-if="screencast.isStreaming.value"
                         class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full">
@@ -512,18 +614,15 @@ function onSendInstruction(text: string) {
                 </div>
 
                 <!-- Agent: thinking + glass chat carousel -->
-                <div class="browser-grid__activity min-h-0 overflow-hidden">
-                  <Transition name="content-fade" mode="out-in">
-                    <AgentActivity
-                      :key="activeChatId"
-                      v-model:task-feedback-open="taskFeedbackOpen"
-                      :messages="currentMessages"
-                      :status="currentStatus"
-                      :is-agent-running="currentIsRunning"
-                      :is-connected="!!agent.sessionId.value"
-                      @task-feedback-vote="onTaskFeedbackVote"
-                    />
-                  </Transition>
+                <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
+                  <AgentActivity
+                    v-model:task-feedback-open="taskFeedbackOpen"
+                    :messages="currentMessages"
+                    :status="currentStatus"
+                    :is-agent-running="currentIsRunning"
+                    :is-connected="!!agent.sessionId.value"
+                    @task-feedback-vote="onTaskFeedbackVote"
+                  />
                 </div>
               </div>
             </div>
@@ -596,8 +695,6 @@ function onSendInstruction(text: string) {
 .fade-leave-active,
 .panel-carousel-enter-active,
 .panel-carousel-leave-active,
-.content-fade-enter-active,
-.content-fade-leave-active,
 .landing-leave-leave-active,
 .browser-reveal-enter-active,
 .browser-reveal-leave-active {
@@ -617,27 +714,6 @@ function onSendInstruction(text: string) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-/* ── Content fade (chat switching) — subtle slide + scale like window swap ── */
-.content-fade-enter-active {
-  transition: opacity 0.32s cubic-bezier(0.18, 1, 0.28, 1),
-    transform 0.32s cubic-bezier(0.18, 1, 0.28, 1);
-}
-
-.content-fade-leave-active {
-  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.65, 1),
-    transform 0.22s cubic-bezier(0.4, 0, 0.65, 1);
-}
-
-.content-fade-enter-from {
-  opacity: 0;
-  transform: translateY(12px) scale(0.988);
-}
-
-.content-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-8px) scale(0.994);
 }
 
 /* ── Panel carousel: crossfade (no slide) ───────────────────────────────── */
@@ -777,8 +853,6 @@ function onSendInstruction(text: string) {
     animation: none !important;
   }
 
-  .content-fade-enter-active,
-  .content-fade-leave-active,
   .browser-reveal-enter-active,
   .browser-reveal-leave-active {
     transition-duration: 0.01ms !important;

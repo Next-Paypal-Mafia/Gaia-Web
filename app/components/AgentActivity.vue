@@ -322,24 +322,28 @@ watch(() => props.status, (s) => {
   if (s === 'error') clearIdleAwaitingFinalReply()
 })
 
-watch(() => props.isAgentRunning, (running, wasRunning) => {
-  if (running) {
-    clearIdleAwaitingFinalReply()
-    return
-  }
-  if (wasRunning === true && !running) {
-    expandedSteps.value = new Set()
-    if (!latestAssistantHasText.value) {
-      idleAwaitingFinalReply.value = true
-      if (idleAwaitingFinalReplyTimer !== null) clearTimeout(idleAwaitingFinalReplyTimer)
-      idleAwaitingFinalReplyTimer = setTimeout(() => {
-        idleAwaitingFinalReplyTimer = null
-        idleAwaitingFinalReply.value = false
-      }, IDLE_FINAL_REPLY_MAX_MS)
-      nextTick(() => scrollToBottom())
+watch(
+  () => props.isAgentRunning,
+  (running, wasRunning) => {
+    if (running) {
+      clearIdleAwaitingFinalReply()
+      return
     }
-  }
-})
+    if (wasRunning === true && !running) {
+      expandedSteps.value = new Set()
+      if (!latestAssistantHasText.value) {
+        idleAwaitingFinalReply.value = true
+        if (idleAwaitingFinalReplyTimer !== null) clearTimeout(idleAwaitingFinalReplyTimer)
+        idleAwaitingFinalReplyTimer = setTimeout(() => {
+          idleAwaitingFinalReplyTimer = null
+          idleAwaitingFinalReply.value = false
+        }, IDLE_FINAL_REPLY_MAX_MS)
+        nextTick(() => scrollToBottom())
+      }
+    }
+  },
+  { flush: 'sync' },
+)
 
 watch(idleAwaitingFinalReply, (v) => {
   if (v) nextTick(() => scrollToBottom())
@@ -406,9 +410,23 @@ const unifiedSegments = computed<UnifiedSegment[]>(() => {
     const group = groupMap.get(msg.id) ?? null
     const text = hasRenderableAssistantText(msg)
     const lastAsst = isLastAssistantMessage(msg)
-    const inProgressShell = props.isAgentRunning && lastAsst && !group && !text
+    /**
+     * Keep an assistant row whenever we're still owed visible prose — including the gap
+     * after session.idle (isAgentRunning false) before final text arrives, and while
+     * submitted/streaming before the assistant message is even merged into the list.
+     */
+    const showAssistantShell =
+      lastAsst
+      && !group
+      && !text
+      && (
+        props.isAgentRunning
+        || props.status === 'submitted'
+        || props.status === 'streaming'
+        || idleAwaitingFinalReply.value
+      )
 
-    if (group || text || inProgressShell) {
+    if (group || text || showAssistantShell) {
       out.push({ key: `a-${msg.id}`, kind: 'assistant', message: msg, group })
     }
   }
@@ -417,7 +435,7 @@ const unifiedSegments = computed<UnifiedSegment[]>(() => {
 
 const showInitialThinking = computed(
   () =>
-    (props.status === 'submitted' || props.status === 'streaming')
+    (props.status === 'submitted' || props.status === 'streaming' || props.isAgentRunning)
     && !stepGroups.value.length
     && !unifiedSegments.value.some(s => s.kind === 'assistant'),
 )
@@ -426,6 +444,7 @@ const feedEmpty = computed(
   () =>
     unifiedSegments.value.length === 0
     && !showInitialThinking.value
+    && !showReplyLoadingIndicator.value
     && !props.isAgentRunning,
 )
 </script>
