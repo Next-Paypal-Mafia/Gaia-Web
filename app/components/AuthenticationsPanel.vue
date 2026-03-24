@@ -133,7 +133,7 @@ function cancelDelete() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full w-full rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden min-h-0 shadow-lg dark:shadow-xl dark:shadow-black/20">
+  <div class="glass-jelly flex flex-col h-full w-full rounded-2xl overflow-hidden min-h-0 ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
     <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
       <div class="min-w-0">

@@ -54,7 +54,7 @@ const filteredFiles = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full w-full overflow-hidden rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20 relative">
+  <div class="glass-jelly flex flex-col h-full w-full overflow-hidden rounded-2xl relative ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Coming Soon Overlay -->
     <div class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-black/60 backdrop-blur-md p-6 text-center">
       <div class="size-16 rounded-[1.25rem] bg-primary/10 flex items-center justify-center mb-5 ring-1 ring-primary/20">

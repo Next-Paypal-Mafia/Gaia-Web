@@ -26,7 +26,7 @@ function onNavigate() {
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5 px-3 py-2 mx-2 rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20">
+  <div class="flex items-center gap-1.5 px-3 py-2 mx-2 rounded-2xl bg-elevated">
     <!-- Navigation buttons -->
     <UButton
       icon="i-lucide-arrow-left"

@@ -53,8 +53,14 @@ const totalActions = computed(() =>
   stepGroups.value.reduce((sum, g) => sum + g.items.length, 0),
 )
 
+function isBetaFeedbackMessage(msg: UIMessage): boolean {
+  return msg.role === 'user' && msg.parts.some(p => p.type === 'beta-feedback')
+}
+
 const currentPrompt = computed(() => {
-  const lastUser = [...props.messages].reverse().find(m => m.role === 'user')
+  const lastUser = [...props.messages].reverse().find(
+    m => m.role === 'user' && !isBetaFeedbackMessage(m),
+  )
   if (!lastUser) return null
   const textPart = lastUser.parts.find(p => p.type === 'text')
   return (textPart as any)?.text ?? null
@@ -182,6 +188,7 @@ function getPromptForAssistant(msg: UIMessage): string | null {
     for (let i = idx - 1; i >= 0; i--) {
       const prevMsg = props.messages[i]
       if (prevMsg?.role === 'user') {
+        if (isBetaFeedbackMessage(prevMsg)) continue
         const textPart = prevMsg?.parts?.find(p => p.type === 'text')
         return (textPart as any)?.text ?? null
       }
@@ -294,6 +301,9 @@ const unifiedSegments = computed<UnifiedSegment[]>(() => {
       if (hasTextParts(msg)) {
         out.push({ key: `u-${msg.id}`, kind: 'user', message: msg, group: null })
       }
+      else if (isBetaFeedbackMessage(msg)) {
+        out.push({ key: `u-${msg.id}`, kind: 'user', message: msg, group: null })
+      }
       continue
     }
 
@@ -326,7 +336,7 @@ const feedEmpty = computed(
 
 <template>
   <div
-    class="flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-black/[0.06] dark:ring-white/[0.08] bg-white/50 dark:bg-white/[0.03] backdrop-blur-2xl backdrop-saturate-150 shadow-lg dark:shadow-xl dark:shadow-black/20"
+    class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15"
   >
     <!-- Header -->
     <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0">
@@ -360,11 +370,26 @@ const feedEmpty = computed(
         <div v-for="seg in unifiedSegments" :key="seg.key">
           <!-- User prompt -->
           <div v-if="seg.kind === 'user'" class="flex justify-end">
-            <div class="max-w-[92%] rounded-2xl rounded-br-md px-3.5 py-2.5 bg-primary text-white shadow-sm">
+            <div
+              class="max-w-[92%] rounded-2xl rounded-br-md px-3.5 py-2.5 shadow-sm"
+              :class="isBetaFeedbackMessage(seg.message)
+                ? 'bg-primary/15 text-default ring-1 ring-primary/25 dark:bg-primary/10'
+                : 'bg-primary text-white'"
+            >
               <template v-for="(part, i) in seg.message.parts" :key="i">
                 <p v-if="part.type === 'text'" class="text-sm whitespace-pre-wrap leading-relaxed">
                   {{ (part as any).text }}
                 </p>
+                <div
+                  v-else-if="part.type === 'beta-feedback'"
+                  class="flex items-center gap-2 text-sm leading-relaxed"
+                >
+                  <UIcon
+                    :name="(part as any).sentiment === 'positive' ? 'i-lucide-thumbs-up' : 'i-lucide-thumbs-down'"
+                    class="size-4 shrink-0 text-primary"
+                  />
+                  <span>{{ (part as any).displayText }}</span>
+                </div>
               </template>
             </div>
           </div>

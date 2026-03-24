@@ -110,7 +110,7 @@ const showWorkingIndicator = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-lg dark:shadow-xl dark:shadow-black/20">
+  <div class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
     <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0">
       <UIcon name="i-lucide-messages-square" class="size-4 text-muted" />

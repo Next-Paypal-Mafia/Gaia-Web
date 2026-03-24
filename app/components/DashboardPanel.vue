@@ -100,7 +100,7 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 </script>
 
 <template>
-  <div class="h-full w-full rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden flex flex-col shadow-lg dark:shadow-xl dark:shadow-black/20">
+  <div class="glass-jelly h-full w-full rounded-2xl overflow-hidden flex flex-col ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
     <div class="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
       <div>

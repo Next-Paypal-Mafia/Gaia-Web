@@ -2,42 +2,507 @@
 @import "@nuxt/ui";
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   Jellyfish Glassmorphism — Neutral glass + subtle purple ambient hues
+   Jellyfish / liquid glass — frosted refraction, subtle violet edge bleed
+   (fuchsia–pink wash; rim tints kept low for text readability)
    ══════════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    /* Ambient hue colors — just the floating orbs, not surfaces */
-    --jelly-orb-1: rgba(139, 92, 246, 0.12);
-    --jelly-orb-2: rgba(109, 40, 217, 0.08);
-    --jelly-orb-3: rgba(168, 85, 247, 0.06);
+    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
+    --jelly-orb-1: rgba(232, 121, 249, 0.155);
+    --jelly-orb-2: rgba(244, 114, 182, 0.12);
+    --jelly-orb-3: rgba(124, 58, 237, 0.082);
+    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
+    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
+    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
+    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
+    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
+    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
   }
 
   .dark {
-    --jelly-orb-1: rgba(139, 92, 246, 0.15);
-    --jelly-orb-2: rgba(109, 40, 217, 0.10);
-    --jelly-orb-3: rgba(168, 85, 247, 0.08);
+    --jelly-orb-1: rgba(232, 121, 249, 0.135);
+    --jelly-orb-2: rgba(251, 113, 133, 0.105);
+    --jelly-orb-3: rgba(167, 139, 250, 0.1);
+    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
+    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
+    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
+    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
+    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
   }
 }
 
 @layer components {
   /* ── Glass utility — neutral, works in both modes ─────────────────────── */
   .glass {
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(24px) saturate(1.3);
-    -webkit-backdrop-filter: blur(24px) saturate(1.3);
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.52);
+    backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
+    -webkit-backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
+    border: 1px solid rgba(91, 33, 182, 0.11);
     box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
-      0 1px 3px 0 rgba(0, 0, 0, 0.04);
+      0 0 0 1px rgba(46, 16, 101, 0.035),
+      inset 0 0 36px rgba(76, 29, 149, 0.028),
+      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
+      0 8px 28px -8px rgba(0, 0, 0, 0.1),
+      0 1px 2px rgba(0, 0, 0, 0.04);
   }
 
   .dark .glass {
     background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(124, 58, 237, 0.14);
+    backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
+    -webkit-backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
     box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
-      0 4px 24px -4px rgba(0, 0, 0, 0.3);
+      0 0 0 1px rgba(0, 0, 0, 0.35),
+      inset 0 0 40px rgba(30, 27, 75, 0.14),
+      inset 0 1px 0 0 rgba(109, 40, 217, 0.09),
+      0 12px 40px -12px rgba(0, 0, 0, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+
+  /* ── Large “glass jelly” panes — translucent volume, specular edge, slow drift ─ */
+  @keyframes jelly-gradient-drift {
+    0%,
+    100% {
+      background-position: 0% 40%, 100% 60%;
+    }
+    33% {
+      background-position: 100% 60%, 0% 40%;
+    }
+    66% {
+      background-position: 40% 100%, 80% 0%;
+    }
+  }
+
+  @keyframes jelly-panel-breathe {
+    0%,
+    100% {
+      box-shadow:
+        inset 0 0 56px -12px rgba(46, 16, 101, 0.045),
+        inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
+        inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+        inset 0 -24px 48px -28px var(--jelly-violet-shadow),
+        0 22px 56px -14px rgba(0, 0, 0, 0.14),
+        0 8px 32px -16px rgba(91, 33, 182, 0.085),
+        0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    50% {
+      box-shadow:
+        inset 0 0 56px -10px rgba(46, 16, 101, 0.055),
+        inset 0 1px 0 0 rgba(167, 139, 250, 0.07),
+        inset 0 -1px 0 0 rgba(30, 27, 75, 0.08),
+        inset 0 -28px 52px -28px var(--jelly-violet-shadow),
+        0 28px 72px -12px rgba(0, 0, 0, 0.12),
+        0 12px 40px -14px rgba(217, 70, 239, 0.11),
+        0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+  }
+
+  @keyframes jelly-slab-breathe {
+    0%,
+    100% {
+      box-shadow:
+        inset 3px 0 28px -10px rgba(91, 33, 182, 0.08),
+        inset 0 0 52px -12px rgba(46, 16, 101, 0.04),
+        inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
+        inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+        inset 0 -24px 48px -28px var(--jelly-violet-shadow),
+        0 24px 60px -16px rgba(0, 0, 0, 0.16),
+        0 12px 40px -18px rgba(91, 33, 182, 0.095),
+        0 2px 6px rgba(0, 0, 0, 0.055);
+    }
+    50% {
+      box-shadow:
+        inset 3px 0 30px -8px rgba(109, 40, 217, 0.1),
+        inset 0 0 56px -10px rgba(46, 16, 101, 0.05),
+        inset 0 1px 0 0 rgba(167, 139, 250, 0.065),
+        inset 0 -1px 0 0 rgba(30, 27, 75, 0.075),
+        inset 0 -28px 52px -28px var(--jelly-violet-shadow),
+        0 30px 76px -14px rgba(0, 0, 0, 0.14),
+        0 16px 48px -16px rgba(217, 70, 239, 0.12),
+        0 3px 8px rgba(0, 0, 0, 0.05);
+    }
+  }
+
+  @keyframes jelly-slab-wobble {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    25% {
+      transform: translate3d(0, -0.4px, 0) scale(1.0006);
+    }
+    75% {
+      transform: translate3d(0, 0.3px, 0) scale(1.0004);
+    }
+  }
+
+  .glass-jelly {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transform: translateZ(0);
+    backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
+    -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
+    border: 1px solid rgba(91, 33, 182, 0.12);
+    background-color: rgba(255, 255, 255, 0.085);
+    background-image:
+      radial-gradient(
+        80% 55% at 50% -5%,
+        rgba(167, 139, 250, 0.045) 0%,
+        transparent 52%
+      ),
+      linear-gradient(
+        130deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 26%,
+        var(--jelly-violet-mid) 44%,
+        var(--jelly-magenta-lit) 56%,
+        var(--jelly-violet-deep) 74%,
+        var(--jelly-violet-ink) 100%
+      );
+    background-size:
+      100% 100%,
+      260% 260%;
+    background-repeat: no-repeat;
+    animation:
+      jelly-gradient-drift 28s ease-in-out infinite,
+      jelly-panel-breathe 16s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px rgba(46, 16, 101, 0.04),
+      inset 0 0 56px -12px rgba(46, 16, 101, 0.045),
+      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
+      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+      inset 0 -24px 48px -28px var(--jelly-violet-shadow),
+      0 22px 56px -14px rgba(0, 0, 0, 0.14),
+      0 8px 32px -16px rgba(91, 33, 182, 0.085),
+      0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Very subtle violet edge bleed — keeps content readable */
+  .glass-jelly::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(
+        130% 72% at 50% -12%,
+        rgba(76, 29, 149, 0.07) 0%,
+        rgba(91, 33, 182, 0.025) 44%,
+        transparent 72%
+      ),
+      radial-gradient(
+        110% 85% at 100% 50%,
+        rgba(46, 16, 101, 0.045) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        110% 85% at 0% 50%,
+        rgba(46, 16, 101, 0.045) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        125% 70% at 50% 108%,
+        rgba(30, 27, 75, 0.065) 0%,
+        transparent 58%
+      );
+    opacity: 0.5;
+  }
+
+  .glass-jelly::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(
+      175deg,
+      rgba(76, 29, 149, 0.035) 0%,
+      transparent 34%,
+      transparent 66%,
+      rgba(46, 16, 101, 0.045) 100%
+    );
+    opacity: 0.32;
+    animation: jelly-gloss-shimmer 22s ease-in-out infinite;
+  }
+
+  @keyframes jelly-gloss-shimmer {
+    0%,
+    100% {
+      opacity: 0.26;
+    }
+    50% {
+      opacity: 0.38;
+    }
+  }
+
+  .glass-jelly > *,
+  .jelly-block > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  .dark .glass-jelly {
+    border-color: rgba(124, 58, 237, 0.15);
+    background-color: rgba(255, 255, 255, 0.032);
+    backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
+    -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
+    background-image:
+      radial-gradient(
+        85% 60% at 50% -8%,
+        rgba(109, 40, 217, 0.055) 0%,
+        transparent 50%
+      ),
+      linear-gradient(
+        132deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 24%,
+        var(--jelly-violet-mid) 42%,
+        var(--jelly-magenta-lit) 60%,
+        var(--jelly-violet-deep) 76%,
+        var(--jelly-violet-ink) 100%
+      );
+    background-size:
+      100% 100%,
+      260% 260%;
+  }
+
+  .dark .glass-jelly::before {
+    background:
+      radial-gradient(
+        125% 65% at 50% -12%,
+        rgba(76, 29, 149, 0.14) 0%,
+        rgba(49, 46, 129, 0.05) 48%,
+        transparent 74%
+      ),
+      radial-gradient(
+        115% 90% at 100% 50%,
+        rgba(30, 27, 75, 0.16) 0%,
+        transparent 48%
+      ),
+      radial-gradient(
+        115% 90% at 0% 50%,
+        rgba(30, 27, 75, 0.16) 0%,
+        transparent 48%
+      ),
+      radial-gradient(
+        130% 75% at 50% 108%,
+        rgba(15, 10, 40, 0.14) 0%,
+        transparent 60%
+      );
+    opacity: 0.48;
+  }
+
+  /* Side nav: same translucent jelly language, slightly brighter left edge */
+  .jelly-block {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transform: translateZ(0);
+    backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
+    -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
+    border: 1px solid rgba(91, 33, 182, 0.12);
+    background-color: rgba(255, 255, 255, 0.095);
+    background-image:
+      linear-gradient(
+        95deg,
+        rgba(91, 33, 182, 0.065) 0%,
+        rgba(76, 29, 149, 0.028) 18%,
+        transparent 40%
+      ),
+      linear-gradient(
+        125deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 24%,
+        var(--jelly-violet-mid) 38%,
+        var(--jelly-magenta-lit) 54%,
+        var(--jelly-violet-deep) 72%,
+        var(--jelly-violet-ink) 100%
+      );
+    background-size:
+      100% 100%,
+      280% 280%;
+    background-repeat: no-repeat;
+    animation:
+      jelly-gradient-drift 32s ease-in-out infinite reverse,
+      jelly-slab-breathe 18s ease-in-out infinite,
+      jelly-slab-wobble 22s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px rgba(46, 16, 101, 0.04),
+      inset 3px 0 28px -10px rgba(91, 33, 182, 0.08),
+      inset 0 0 52px -12px rgba(46, 16, 101, 0.04),
+      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
+      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+      inset 0 -24px 48px -28px var(--jelly-violet-shadow),
+      0 24px 60px -16px rgba(0, 0, 0, 0.16),
+      0 12px 40px -18px rgba(91, 33, 182, 0.095),
+      0 2px 6px rgba(0, 0, 0, 0.055);
+  }
+
+  .jelly-block::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      linear-gradient(
+        100deg,
+        rgba(76, 29, 149, 0.075) 0%,
+        rgba(91, 33, 182, 0.028) 24%,
+        transparent 48%
+      ),
+      radial-gradient(
+        115% 58% at 50% -8%,
+        rgba(46, 16, 101, 0.08) 0%,
+        transparent 58%
+      );
+    opacity: 0.42;
+  }
+
+  .jelly-block::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(
+      100deg,
+      rgba(91, 33, 182, 0.035) 0%,
+      transparent 32%,
+      transparent 68%,
+      rgba(46, 16, 101, 0.045) 100%
+    );
+    opacity: 0.3;
+    animation: jelly-gloss-shimmer 24s ease-in-out infinite 2s;
+  }
+
+  .dark .jelly-block {
+    border-color: rgba(124, 58, 237, 0.16);
+    background-color: rgba(255, 255, 255, 0.038);
+    backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
+    -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
+    background-image:
+      linear-gradient(
+        95deg,
+        rgba(76, 29, 149, 0.09) 0%,
+        rgba(49, 46, 129, 0.04) 20%,
+        transparent 42%
+      ),
+      linear-gradient(
+        128deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 24%,
+        var(--jelly-violet-mid) 40%,
+        var(--jelly-magenta-lit) 58%,
+        var(--jelly-violet-deep) 74%,
+        var(--jelly-violet-ink) 100%
+      );
+    background-size:
+      100% 100%,
+      280% 280%;
+  }
+
+  .dark .jelly-block::before {
+    background:
+      linear-gradient(
+        100deg,
+        rgba(55, 48, 163, 0.12) 0%,
+        rgba(30, 27, 75, 0.055) 28%,
+        transparent 50%
+      ),
+      radial-gradient(
+        110% 52% at 50% -10%,
+        rgba(46, 16, 101, 0.13) 0%,
+        transparent 62%
+      );
+    opacity: 0.4;
+  }
+
+  /* Sidenav while browser viewport is visible — block bright page bleed-through */
+  .jelly-block--over-bright {
+    backdrop-filter: blur(56px) saturate(1.28) contrast(1.02);
+    -webkit-backdrop-filter: blur(56px) saturate(1.28) contrast(1.02);
+    background-color: rgba(252, 252, 254, 0.94);
+    border-color: rgba(91, 33, 182, 0.2);
+    animation:
+      jelly-gradient-drift 32s ease-in-out infinite reverse,
+      jelly-slab-wobble 22s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px rgba(46, 16, 101, 0.08),
+      6px 0 32px -6px rgba(0, 0, 0, 0.14),
+      inset 0 0 48px -14px rgba(46, 16, 101, 0.045),
+      inset 0 1px 0 0 rgba(124, 58, 237, 0.09),
+      inset 0 -1px 0 0 rgba(30, 27, 75, 0.07),
+      inset 0 -20px 40px -26px var(--jelly-violet-shadow),
+      0 18px 44px -12px rgba(0, 0, 0, 0.12),
+      0 3px 10px rgba(0, 0, 0, 0.07);
+  }
+
+  .jelly-block--over-bright::before {
+    opacity: 0.16;
+  }
+
+  .jelly-block--over-bright::after {
+    opacity: 0.12;
+    animation: none;
+  }
+
+  .dark .jelly-block--over-bright {
+    background-color: rgba(14, 12, 22, 0.94);
+    border-color: rgba(124, 58, 237, 0.38);
+    backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
+    -webkit-backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
+    background-image:
+      linear-gradient(
+        95deg,
+        rgba(10, 8, 18, 0.92) 0%,
+        rgba(14, 12, 22, 0.88) 38%,
+        rgba(14, 12, 22, 0.82) 100%
+      ),
+      linear-gradient(
+        128deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 24%,
+        var(--jelly-violet-mid) 40%,
+        var(--jelly-magenta-lit) 58%,
+        var(--jelly-violet-deep) 74%,
+        var(--jelly-violet-ink) 100%
+      );
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.5),
+      10px 0 40px -6px rgba(0, 0, 0, 0.65),
+      inset 0 0 72px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 0 rgba(124, 58, 237, 0.14),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
+      0 22px 56px -14px rgba(0, 0, 0, 0.45),
+      0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .dark .jelly-block--over-bright::before {
+    opacity: 0.1;
+    background:
+      linear-gradient(
+        100deg,
+        rgba(55, 48, 163, 0.15) 0%,
+        transparent 42%
+      ),
+      radial-gradient(
+        110% 48% at 50% -6%,
+        rgba(30, 27, 50, 0.35) 0%,
+        transparent 58%
+      );
+  }
+
+  .dark .jelly-block--over-bright::after {
+    opacity: 0.06;
+    animation: none;
   }
 
   /* ── Landing input override ───────────────────────────────────────────── */
@@ -148,7 +613,22 @@
 
 /* ── Reduced motion ───────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .jelly-orb {
+  .jelly-orb,
+  .glass-jelly,
+  .jelly-block,
+  .jelly-block--over-bright {
     animation: none !important;
+  }
+
+  .glass-jelly::after,
+  .jelly-block::after {
+    animation: none !important;
+  }
+
+  .glass-jelly,
+  .jelly-block {
+    background-size:
+      100% 100%,
+      100% 100% !important;
   }
 }

@@ -379,6 +379,28 @@ export function useOpenCodeAgent() {
     messages.value = [...initialMessages];
   }
 
+  /**
+   * Append a local-only beta feedback line to the transcript (no API call, no agent reply).
+   */
+  function appendBetaFeedback(sentiment: "positive" | "negative"): void {
+    const displayText =
+      sentiment === "positive"
+        ? "Beta feedback: Yes — the agent completed my task."
+        : "Beta feedback: No — the agent did not complete my task.";
+    const userMsg: UIMessage = {
+      id: `user-beta-feedback-${Date.now()}`,
+      role: "user",
+      parts: [
+        {
+          type: "beta-feedback",
+          sentiment,
+          displayText,
+        },
+      ],
+    };
+    messages.value = [...messages.value, userMsg];
+  }
+
   return {
     messages: readonly(messages),
     status: readonly(status),
@@ -390,5 +412,6 @@ export function useOpenCodeAgent() {
     stop,
     getMessages,
     resetChat,
+    appendBetaFeedback,
   };
 }

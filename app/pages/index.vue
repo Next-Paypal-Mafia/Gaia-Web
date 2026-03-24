@@ -25,12 +25,6 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(async () => {
-  if (tilingAnimTimer) clearTimeout(tilingAnimTimer)
-  screencast.stop()
-  await agent.disconnect()
-})
-
 /** Full sidebar vs icon rail (default: rail for wider browser viewport) */
 const sidebarExpanded = ref(false)
 
@@ -77,12 +71,95 @@ const currentIsRunning = computed(() =>
   isViewingStreamingChat.value && agent.isAgentRunning.value,
 )
 
-// ── Landing / browser-reveal animation ───────────────────────────────────────
 const browserRevealed = ref(false)
 const showLanding = computed(() =>
   isBrowserView.value && currentMessages.value.length === 0 && !browserRevealed.value,
 )
 
+/** Beta task-completion feedback: 10s idle after agent finishes */
+const taskFeedbackOpen = ref(false)
+let taskFeedbackTimer: ReturnType<typeof setTimeout> | null = null
+const taskFeedbackAssistantId = ref<string | null>(null)
+const dismissedTaskFeedbackAssistantIds = ref<Set<string>>(new Set())
+
+function dismissTaskFeedbackForAssistant(id: string) {
+  const next = new Set(dismissedTaskFeedbackAssistantIds.value)
+  next.add(id)
+  dismissedTaskFeedbackAssistantIds.value = next
+}
+
+function clearTaskFeedbackTimer() {
+  if (taskFeedbackTimer) {
+    clearTimeout(taskFeedbackTimer)
+    taskFeedbackTimer = null
+  }
+}
+
+function lastAssistantMessageId(msgs: UIMessage[]): string | null {
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m?.role === 'assistant') return m.id
+  }
+  return null
+}
+
+watch(currentIsRunning, (running, wasRunning) => {
+  clearTaskFeedbackTimer()
+  if (running) {
+    taskFeedbackOpen.value = false
+    return
+  }
+  if (wasRunning !== true) return
+  if (!isBrowserView.value || showLanding.value || !isViewingStreamingChat.value) return
+  if (currentStatus.value !== 'ready') return
+  const msgs = currentMessages.value
+  if (msgs.length === 0) return
+  const aid = lastAssistantMessageId(msgs)
+  if (!aid || dismissedTaskFeedbackAssistantIds.value.has(aid)) return
+
+  taskFeedbackTimer = setTimeout(() => {
+    taskFeedbackTimer = null
+    if (currentIsRunning.value) return
+    if (!isBrowserView.value || showLanding.value || !isViewingStreamingChat.value) return
+    if (currentStatus.value !== 'ready') return
+    const m = currentMessages.value
+    const still = lastAssistantMessageId(m)
+    if (still !== aid) return
+    if (dismissedTaskFeedbackAssistantIds.value.has(aid)) return
+    taskFeedbackAssistantId.value = aid
+    taskFeedbackOpen.value = true
+  }, 10_000)
+})
+
+watch([activeChatId, isViewingStreamingChat, isBrowserView, showLanding], () => {
+  clearTaskFeedbackTimer()
+  taskFeedbackOpen.value = false
+  taskFeedbackAssistantId.value = null
+})
+
+function onTaskFeedbackContinue() {
+  const id = taskFeedbackAssistantId.value
+  if (id) dismissTaskFeedbackForAssistant(id)
+  taskFeedbackOpen.value = false
+  taskFeedbackAssistantId.value = null
+}
+
+function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
+  const id = taskFeedbackAssistantId.value
+  if (id) dismissTaskFeedbackForAssistant(id)
+  agent.appendBetaFeedback(sentiment)
+  taskFeedbackOpen.value = false
+  taskFeedbackAssistantId.value = null
+}
+
+onUnmounted(async () => {
+  if (tilingAnimTimer) clearTimeout(tilingAnimTimer)
+  clearTaskFeedbackTimer()
+  screencast.stop()
+  await agent.disconnect()
+})
+
+// ── Landing / browser-reveal animation ───────────────────────────────────────
 const landingInput = ref('')
 const suggestions = [
   'Search for the latest AI news',
@@ -101,6 +178,9 @@ function setActiveChatTitleFromText(text: string) {
 function onLandingSend(text?: string) {
   const msg = (text ?? landingInput.value).trim()
   if (!msg) return
+  clearTaskFeedbackTimer()
+  taskFeedbackOpen.value = false
+  taskFeedbackAssistantId.value = null
   landingInput.value = ''
   browserRevealed.value = true
   setActiveChatTitleFromText(msg)
@@ -335,6 +415,9 @@ function onDeleteChat(id: string) {
 }
 
 function onSendInstruction(text: string) {
+  clearTaskFeedbackTimer()
+  taskFeedbackOpen.value = false
+  taskFeedbackAssistantId.value = null
   // If sending from a chat that isn't the streaming one, rebind first
   bindAgentToActiveChat()
 
@@ -480,6 +563,12 @@ function onSendInstruction(text: string) {
       </div>
     </template>
   </div>
+
+  <TaskFeedbackModal
+    v-model:open="taskFeedbackOpen"
+    @continue-chat="onTaskFeedbackContinue"
+    @vote="onTaskFeedbackVote"
+  />
 </div>
 </template>
 
@@ -499,7 +588,7 @@ function onSendInstruction(text: string) {
 
 .landing-glass-input :deep(textarea:focus) {
   border-color: var(--ui-color-primary-500) !important;
-  box-shadow: 0 0 20px -8px rgba(139, 92, 246, 0.2) !important;
+  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
 }
 
 /* ── Shared: GPU-friendly, reduce paint ───────────────────────────────── */

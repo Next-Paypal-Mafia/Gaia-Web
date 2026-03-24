@@ -30,7 +30,7 @@ const pastelPool = [
   'bg-amber-200/90 dark:bg-amber-900/50',
   'bg-emerald-200/90 dark:bg-emerald-900/50',
   'bg-sky-200/90 dark:bg-sky-900/50',
-  'bg-violet-200/90 dark:bg-violet-900/50',
+  'bg-fuchsia-200/90 dark:bg-fuchsia-950/50',
   'bg-cyan-200/90 dark:bg-cyan-900/50',
   'bg-fuchsia-200/90 dark:bg-fuchsia-900/50',
   'bg-lime-200/90 dark:bg-lime-900/50',
@@ -117,9 +117,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full min-h-[480px] w-full max-w-6xl mx-auto rounded-xl bg-white/40 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-lg dark:shadow-xl dark:shadow-black/20">
+  <div class="flex flex-col h-full min-h-[480px] w-full max-w-6xl mx-auto rounded-xl bg-default/30 ring-1 ring-default/40 overflow-hidden">
     <!-- Toolbar -->
-    <div class="shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.03]">
+    <div class="shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-b border-default/30 bg-elevated/80">
       <span class="text-sm font-semibold text-default mr-2">Hyprland-style tiling</span>
       <button
         type="button"

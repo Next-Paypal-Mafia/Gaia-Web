@@ -10,7 +10,11 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      agentApiUrl: "",
+      /** Agent / OpenCode backend (e.g. http://localhost:8000). Set SERVER_URL or NUXT_PUBLIC_SERVER_URL in .env */
+      serverUrl:
+        process.env.NUXT_PUBLIC_SERVER_URL ||
+        process.env.SERVER_URL ||
+        "",
     },
   },
 

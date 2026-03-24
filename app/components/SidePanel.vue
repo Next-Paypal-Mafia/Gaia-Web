@@ -231,10 +231,11 @@ watch(
     :style="{ width: expanded && !isBrowserView ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
   >
     <aside
-      class="sidebar-aside flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50 bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20"
+      class="sidebar-aside jelly-block flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50"
       :class="[
         expanded ? 'sidebar-expanded' : 'sidebar-rail',
-        expanded && isBrowserView ? 'shadow-2xl ring-1 ring-black/5 dark:ring-white/10' : ''
+        isBrowserView ? 'jelly-block--over-bright' : '',
+        expanded && isBrowserView ? 'ring-1 ring-fuchsia-500/15 dark:ring-pink-400/20' : '',
       ]"
       @mouseenter="isBrowserView && emit('expand')"
       @mouseleave="isBrowserView && emit('toggle')"

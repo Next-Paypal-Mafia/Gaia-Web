@@ -60,11 +60,11 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="h-full w-full rounded-2xl bg-white/60 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-lg dark:shadow-xl dark:shadow-black/20 flex flex-col">
+  <div class="glass-jelly h-full w-full rounded-2xl flex flex-col ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
-    <div class="flex items-center gap-3 px-6 py-5 shrink-0 border-b border-black/[0.06] dark:border-white/[0.06]">
+    <div class="flex items-center gap-3 px-6 py-5 shrink-0 border-b border-muted">
       <button
-        class="size-8 rounded-lg bg-black/[0.04] dark:bg-white/10 flex items-center justify-center text-muted hover:text-default transition-colors"
+        class="size-8 rounded-lg bg-default/80 flex items-center justify-center text-muted hover:text-default transition-colors"
         @click="emit('back')"
       >
         <UIcon name="i-lucide-arrow-left" class="size-4" />
@@ -79,7 +79,7 @@ async function handleLogout() {
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-lg mx-auto px-6 py-6 space-y-6">
         <!-- Profile card -->
-        <div class="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.06] rounded-2xl p-6 flex flex-col items-center gap-4">
+        <div class="bg-default/50 rounded-2xl p-6 flex flex-col items-center gap-4">
           <div
             v-if="settings.profilePicture.value"
             class="size-20 rounded-full shrink-0 overflow-hidden ring-2 ring-muted"
@@ -92,7 +92,8 @@ async function handleLogout() {
           </div>
           <div
             v-else
-            class="size-20 rounded-full flex items-center justify-center bg-primary text-white font-bold text-2xl shrink-0"
+            class="size-20 rounded-full flex items-center justify-center text-white font-bold text-2xl shrink-0"
+            style="background: linear-gradient(135deg, var(--ui-color-primary-400), var(--ui-color-primary-600))"
           >
             {{ initials }}
           </div>
@@ -136,7 +137,7 @@ async function handleLogout() {
             </template>
             <template v-else>
               <button
-                class="px-4 py-1.5 rounded-lg text-sm font-medium bg-black/[0.04] dark:bg-white/10 text-muted hover:text-default transition-colors"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium bg-default/80 text-muted hover:text-default transition-colors"
                 @click="cancelEdit"
               >
                 Cancel
@@ -156,7 +157,7 @@ async function handleLogout() {
         <div class="space-y-3">
           <h2 class="text-sm font-semibold text-default px-1">Account settings</h2>
 
-          <div class="bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.06] rounded-2xl overflow-hidden divide-y divide-black/[0.06] dark:divide-white/[0.06]">
+          <div class="bg-default/50 rounded-2xl overflow-hidden divide-y divide-muted">
             <!-- Subscription -->
             <div class="flex items-center justify-between px-4 py-3.5">
               <div class="flex items-center gap-3">
@@ -198,7 +199,7 @@ async function handleLogout() {
 
         <!-- Logout -->
         <button
-          class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.06] text-sm font-medium text-error hover:bg-error/10 transition-colors"
+          class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-default/50 text-sm font-medium text-error hover:bg-error/10 transition-colors"
           @click="handleLogout"
         >
           <UIcon name="i-lucide-log-out" class="size-4" />
