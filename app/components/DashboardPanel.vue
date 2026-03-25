@@ -100,7 +100,8 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 </script>
 
 <template>
-  <div class="glass-jelly h-full w-full rounded-2xl overflow-hidden flex flex-col ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
+  <LiquidGlassPanel>
+    <div class="flex flex-col h-full min-h-0 w-full">
     <!-- Header -->
     <div class="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
       <div>
@@ -243,5 +244,6 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
         </div>
       </template>
     </UModal>
-  </div>
+    </div>
+  </LiquidGlassPanel>
 </template>

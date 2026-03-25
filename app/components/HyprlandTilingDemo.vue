@@ -30,9 +30,9 @@ const pastelPool = [
   'bg-amber-200/90 dark:bg-amber-900/50',
   'bg-emerald-200/90 dark:bg-emerald-900/50',
   'bg-sky-200/90 dark:bg-sky-900/50',
-  'bg-fuchsia-200/90 dark:bg-fuchsia-950/50',
+  'bg-teal-200/90 dark:bg-cyan-950/50',
   'bg-cyan-200/90 dark:bg-cyan-900/50',
-  'bg-fuchsia-200/90 dark:bg-fuchsia-900/50',
+  'bg-teal-200/90 dark:bg-cyan-900/50',
   'bg-lime-200/90 dark:bg-lime-900/50',
 ]
 

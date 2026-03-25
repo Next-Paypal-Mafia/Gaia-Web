@@ -54,7 +54,8 @@ const filteredFiles = computed(() => {
 </script>
 
 <template>
-  <div class="glass-jelly flex flex-col h-full w-full overflow-hidden rounded-2xl relative ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
+  <LiquidGlassPanel class="relative">
+    <div class="flex flex-col h-full min-h-0 w-full relative">
     <!-- Coming Soon Overlay -->
     <div class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-black/60 backdrop-blur-md p-6 text-center">
       <div class="size-16 rounded-[1.25rem] bg-primary/10 flex items-center justify-center mb-5 ring-1 ring-primary/20">
@@ -210,5 +211,6 @@ const filteredFiles = computed(() => {
       </p>
     </div>
     </div>
-  </div>
+    </div>
+  </LiquidGlassPanel>
 </template>

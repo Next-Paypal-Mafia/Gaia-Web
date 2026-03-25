@@ -374,9 +374,8 @@ const feedEmpty = computed(
 </script>
 
 <template>
-  <div
-    class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15"
-  >
+  <LiquidGlassPanel>
+    <div class="flex flex-col h-full min-h-0 w-full">
     <!-- Header -->
     <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0">
       <div class="relative">
@@ -566,7 +565,8 @@ const feedEmpty = computed(
         />
       </div>
     </div>
-  </div>
+    </div>
+  </LiquidGlassPanel>
 </template>
 
 <style scoped>

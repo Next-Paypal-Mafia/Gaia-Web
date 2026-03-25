@@ -2,82 +2,65 @@
 @import "@nuxt/ui";
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   Jellyfish / liquid glass — frosted refraction, subtle violet edge bleed
-   (fuchsia–pink wash; rim tints kept low for text readability)
-   Jellyfish / liquid glass — frosted refraction, subtle violet edge bleed
-   (fuchsia–pink wash; rim tints kept low for text readability)
+   Ethereal ocean — light: mint / aqua glass; dark: abyssal blues + bioluminescent teal
+   (class names glass-jelly / jelly-block unchanged for components)
    ══════════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
-    --jelly-orb-1: rgba(232, 121, 249, 0.155);
-    --jelly-orb-2: rgba(244, 114, 182, 0.12);
-    --jelly-orb-3: rgba(124, 58, 237, 0.082);
-    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
-    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
-    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
-    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
-    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
-    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
-    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
-    --jelly-orb-1: rgba(232, 121, 249, 0.155);
-    --jelly-orb-2: rgba(244, 114, 182, 0.12);
-    --jelly-orb-3: rgba(124, 58, 237, 0.082);
-    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
-    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
-    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
-    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
-    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
-    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
+    /* Light: deeper sky → teal so glass reads over “water” (less white-on-white wash) */
+    --ocean-page-top: #dbeafe;
+    --ocean-page-bottom: #99f6e4;
+    --jelly-orb-1: rgba(14, 165, 233, 0.22);
+    --jelly-orb-2: rgba(45, 212, 191, 0.2);
+    --jelly-orb-3: rgba(56, 189, 248, 0.16);
+    --jelly-violet-ink: rgba(15, 118, 110, 0.1);
+    --jelly-violet-deep: rgba(13, 148, 136, 0.12);
+    --jelly-violet-mid: rgba(45, 212, 191, 0.1);
+    --jelly-magenta-lit: rgba(125, 211, 252, 0.12);
+    --jelly-violet-shadow: rgba(15, 118, 110, 0.12);
   }
 
   .dark {
-    --jelly-orb-1: rgba(232, 121, 249, 0.135);
-    --jelly-orb-2: rgba(251, 113, 133, 0.105);
-    --jelly-orb-3: rgba(167, 139, 250, 0.1);
-    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
-    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
-    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
-    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
-    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
-    --jelly-orb-1: rgba(232, 121, 249, 0.135);
-    --jelly-orb-2: rgba(251, 113, 133, 0.105);
-    --jelly-orb-3: rgba(167, 139, 250, 0.1);
-    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
-    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
-    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
-    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
-    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
+    --ocean-page-top: #020617;
+    --ocean-page-bottom: #0c1929;
+    --jelly-orb-1: rgba(34, 211, 238, 0.11);
+    --jelly-orb-2: rgba(20, 184, 166, 0.1);
+    --jelly-orb-3: rgba(56, 189, 248, 0.09);
+    --jelly-violet-ink: rgba(2, 12, 28, 0.55);
+    --jelly-violet-deep: rgba(8, 47, 73, 0.42);
+    --jelly-violet-mid: rgba(34, 211, 238, 0.1);
+    --jelly-magenta-lit: rgba(45, 212, 191, 0.09);
+    --jelly-violet-shadow: rgba(2, 6, 23, 0.65);
   }
 }
 
 @layer components {
   /* ── Glass utility — neutral, works in both modes ─────────────────────── */
   .glass {
-    background: rgba(255, 255, 255, 0.52);
-    backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
-    -webkit-backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
-    border: 1px solid rgba(91, 33, 182, 0.11);
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(32px) saturate(1.35) contrast(1.02);
+    -webkit-backdrop-filter: blur(32px) saturate(1.35) contrast(1.02);
+    border: 1px solid rgba(45, 212, 191, 0.14);
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.035),
-      inset 0 0 36px rgba(76, 29, 149, 0.028),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      0 8px 28px -8px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(15, 118, 110, 0.04),
+      inset 0 0 36px rgba(45, 212, 191, 0.04),
+      inset 0 1px 0 0 rgba(125, 211, 252, 0.35),
+      0 8px 28px -8px rgba(15, 118, 110, 0.12),
       0 1px 2px rgba(0, 0, 0, 0.04);
   }
 
   .dark .glass {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(124, 58, 237, 0.14);
-    backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
-    -webkit-backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(34, 211, 238, 0.16);
+    backdrop-filter: blur(32px) saturate(1.4) contrast(1.03) brightness(1.02);
+    -webkit-backdrop-filter: blur(32px) saturate(1.4) contrast(1.03) brightness(1.02);
     box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.35),
-      inset 0 0 40px rgba(30, 27, 75, 0.14),
-      inset 0 1px 0 0 rgba(109, 40, 217, 0.09),
-      0 12px 40px -12px rgba(0, 0, 0, 0.45),
-      0 2px 6px rgba(0, 0, 0, 0.25);
+      0 0 0 1px rgba(0, 0, 0, 0.4),
+      inset 0 0 40px rgba(8, 47, 73, 0.22),
+      inset 0 1px 0 0 rgba(34, 211, 238, 0.1),
+      0 12px 40px -12px rgba(0, 0, 0, 0.5),
+      0 2px 6px rgba(0, 0, 0, 0.28);
   }
 
   /* ── Large “glass jelly” panes — translucent volume, specular edge, slow drift ─ */
@@ -98,22 +81,22 @@
     0%,
     100% {
       box-shadow:
-        inset 0 0 56px -12px rgba(46, 16, 101, 0.045),
-        inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-        inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+        inset 0 0 56px -12px rgba(15, 118, 110, 0.05),
+        inset 0 1px 0 0 rgba(125, 211, 252, 0.12),
+        inset 0 -1px 0 0 rgba(15, 118, 110, 0.06),
         inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-        0 22px 56px -14px rgba(0, 0, 0, 0.14),
-        0 8px 32px -16px rgba(91, 33, 182, 0.085),
+        0 22px 56px -14px rgba(0, 0, 0, 0.12),
+        0 8px 32px -16px rgba(45, 212, 191, 0.1),
         0 1px 2px rgba(0, 0, 0, 0.05);
     }
     50% {
       box-shadow:
-        inset 0 0 56px -10px rgba(46, 16, 101, 0.055),
-        inset 0 1px 0 0 rgba(167, 139, 250, 0.07),
-        inset 0 -1px 0 0 rgba(30, 27, 75, 0.08),
+        inset 0 0 56px -10px rgba(15, 118, 110, 0.06),
+        inset 0 1px 0 0 rgba(125, 211, 252, 0.18),
+        inset 0 -1px 0 0 rgba(15, 118, 110, 0.07),
         inset 0 -28px 52px -28px var(--jelly-violet-shadow),
-        0 28px 72px -12px rgba(0, 0, 0, 0.12),
-        0 12px 40px -14px rgba(217, 70, 239, 0.11),
+        0 28px 72px -12px rgba(0, 0, 0, 0.1),
+        0 12px 40px -14px rgba(45, 212, 191, 0.14),
         0 2px 6px rgba(0, 0, 0, 0.04);
     }
   }
@@ -122,24 +105,24 @@
     0%,
     100% {
       box-shadow:
-        inset 3px 0 28px -10px rgba(91, 33, 182, 0.08),
-        inset 0 0 52px -12px rgba(46, 16, 101, 0.04),
-        inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-        inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+        inset 3px 0 28px -10px rgba(13, 148, 136, 0.1),
+        inset 0 0 52px -12px rgba(15, 118, 110, 0.045),
+        inset 0 1px 0 0 rgba(125, 211, 252, 0.1),
+        inset 0 -1px 0 0 rgba(15, 118, 110, 0.06),
         inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-        0 24px 60px -16px rgba(0, 0, 0, 0.16),
-        0 12px 40px -18px rgba(91, 33, 182, 0.095),
+        0 24px 60px -16px rgba(0, 0, 0, 0.14),
+        0 12px 40px -18px rgba(45, 212, 191, 0.1),
         0 2px 6px rgba(0, 0, 0, 0.055);
     }
     50% {
       box-shadow:
-        inset 3px 0 30px -8px rgba(109, 40, 217, 0.1),
-        inset 0 0 56px -10px rgba(46, 16, 101, 0.05),
-        inset 0 1px 0 0 rgba(167, 139, 250, 0.065),
-        inset 0 -1px 0 0 rgba(30, 27, 75, 0.075),
+        inset 3px 0 30px -8px rgba(20, 184, 166, 0.12),
+        inset 0 0 56px -10px rgba(15, 118, 110, 0.055),
+        inset 0 1px 0 0 rgba(125, 211, 252, 0.14),
+        inset 0 -1px 0 0 rgba(15, 118, 110, 0.07),
         inset 0 -28px 52px -28px var(--jelly-violet-shadow),
-        0 30px 76px -14px rgba(0, 0, 0, 0.14),
-        0 16px 48px -16px rgba(217, 70, 239, 0.12),
+        0 30px 76px -14px rgba(0, 0, 0, 0.12),
+        0 16px 48px -16px rgba(45, 212, 191, 0.14),
         0 3px 8px rgba(0, 0, 0, 0.05);
     }
   }
@@ -164,12 +147,12 @@
     transform: translateZ(0);
     backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    border: 1px solid rgba(91, 33, 182, 0.12);
-    background-color: rgba(255, 255, 255, 0.085);
+    border: 1px solid rgba(15, 118, 110, 0.2);
+    background-color: rgba(240, 253, 250, 0.2);
     background-image:
       radial-gradient(
         80% 55% at 50% -5%,
-        rgba(167, 139, 250, 0.045) 0%,
+        rgba(125, 211, 252, 0.12) 0%,
         transparent 52%
       ),
       linear-gradient(
@@ -189,17 +172,17 @@
       jelly-gradient-drift 28s ease-in-out infinite,
       jelly-panel-breathe 16s ease-in-out infinite;
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.04),
-      inset 0 0 56px -12px rgba(46, 16, 101, 0.045),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+      0 0 0 1px rgba(15, 118, 110, 0.05),
+      inset 0 0 56px -12px rgba(15, 118, 110, 0.045),
+      inset 0 1px 0 0 rgba(125, 211, 252, 0.14),
+      inset 0 -1px 0 0 rgba(15, 118, 110, 0.06),
       inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-      0 22px 56px -14px rgba(0, 0, 0, 0.14),
-      0 8px 32px -16px rgba(91, 33, 182, 0.085),
+      0 22px 56px -14px rgba(0, 0, 0, 0.12),
+      0 8px 32px -16px rgba(45, 212, 191, 0.1),
       0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
-  /* Very subtle violet edge bleed — keeps content readable */
+  /* Subtle aqua edge bloom — keeps content readable */
   .glass-jelly::before {
     content: "";
     position: absolute;
@@ -210,23 +193,23 @@
     background:
       radial-gradient(
         130% 72% at 50% -12%,
-        rgba(76, 29, 149, 0.07) 0%,
-        rgba(91, 33, 182, 0.025) 44%,
+        rgba(45, 212, 191, 0.1) 0%,
+        rgba(125, 211, 252, 0.04) 44%,
         transparent 72%
       ),
       radial-gradient(
         110% 85% at 100% 50%,
-        rgba(46, 16, 101, 0.045) 0%,
+        rgba(15, 118, 110, 0.05) 0%,
         transparent 50%
       ),
       radial-gradient(
         110% 85% at 0% 50%,
-        rgba(46, 16, 101, 0.045) 0%,
+        rgba(15, 118, 110, 0.05) 0%,
         transparent 50%
       ),
       radial-gradient(
         125% 70% at 50% 108%,
-        rgba(30, 27, 75, 0.065) 0%,
+        rgba(13, 148, 136, 0.07) 0%,
         transparent 58%
       );
     opacity: 0.5;
@@ -241,10 +224,10 @@
     z-index: 1;
     background: linear-gradient(
       175deg,
-      rgba(76, 29, 149, 0.035) 0%,
+      rgba(45, 212, 191, 0.05) 0%,
       transparent 34%,
       transparent 66%,
-      rgba(46, 16, 101, 0.045) 100%
+      rgba(15, 118, 110, 0.06) 100%
     );
     opacity: 0.32;
     animation: jelly-gloss-shimmer 22s ease-in-out infinite;
@@ -267,14 +250,14 @@
   }
 
   .dark .glass-jelly {
-    border-color: rgba(124, 58, 237, 0.15);
+    border-color: rgba(34, 211, 238, 0.18);
     background-color: rgba(255, 255, 255, 0.032);
     backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     background-image:
       radial-gradient(
         85% 60% at 50% -8%,
-        rgba(109, 40, 217, 0.055) 0%,
+        rgba(34, 211, 238, 0.08) 0%,
         transparent 50%
       ),
       linear-gradient(
@@ -295,23 +278,23 @@
     background:
       radial-gradient(
         125% 65% at 50% -12%,
-        rgba(76, 29, 149, 0.14) 0%,
-        rgba(49, 46, 129, 0.05) 48%,
+        rgba(34, 211, 238, 0.12) 0%,
+        rgba(8, 47, 73, 0.2) 48%,
         transparent 74%
       ),
       radial-gradient(
         115% 90% at 100% 50%,
-        rgba(30, 27, 75, 0.16) 0%,
+        rgba(2, 12, 28, 0.35) 0%,
         transparent 48%
       ),
       radial-gradient(
         115% 90% at 0% 50%,
-        rgba(30, 27, 75, 0.16) 0%,
+        rgba(2, 12, 28, 0.35) 0%,
         transparent 48%
       ),
       radial-gradient(
         130% 75% at 50% 108%,
-        rgba(15, 10, 40, 0.14) 0%,
+        rgba(2, 6, 23, 0.45) 0%,
         transparent 60%
       );
     opacity: 0.48;
@@ -325,13 +308,13 @@
     transform: translateZ(0);
     backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    border: 1px solid rgba(91, 33, 182, 0.12);
+    border: 1px solid rgba(45, 212, 191, 0.15);
     background-color: rgba(255, 255, 255, 0.095);
     background-image:
       linear-gradient(
         95deg,
-        rgba(91, 33, 182, 0.065) 0%,
-        rgba(76, 29, 149, 0.028) 18%,
+        rgba(45, 212, 191, 0.09) 0%,
+        rgba(125, 211, 252, 0.04) 18%,
         transparent 40%
       ),
       linear-gradient(
@@ -352,14 +335,14 @@
       jelly-slab-breathe 18s ease-in-out infinite,
       jelly-slab-wobble 22s ease-in-out infinite;
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.04),
-      inset 3px 0 28px -10px rgba(91, 33, 182, 0.08),
-      inset 0 0 52px -12px rgba(46, 16, 101, 0.04),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
+      0 0 0 1px rgba(15, 118, 110, 0.05),
+      inset 3px 0 28px -10px rgba(13, 148, 136, 0.1),
+      inset 0 0 52px -12px rgba(15, 118, 110, 0.04),
+      inset 0 1px 0 0 rgba(125, 211, 252, 0.12),
+      inset 0 -1px 0 0 rgba(15, 118, 110, 0.06),
       inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-      0 24px 60px -16px rgba(0, 0, 0, 0.16),
-      0 12px 40px -18px rgba(91, 33, 182, 0.095),
+      0 24px 60px -16px rgba(0, 0, 0, 0.14),
+      0 12px 40px -18px rgba(45, 212, 191, 0.1),
       0 2px 6px rgba(0, 0, 0, 0.055);
   }
 
@@ -373,13 +356,13 @@
     background:
       linear-gradient(
         100deg,
-        rgba(76, 29, 149, 0.075) 0%,
-        rgba(91, 33, 182, 0.028) 24%,
+        rgba(45, 212, 191, 0.09) 0%,
+        rgba(125, 211, 252, 0.04) 24%,
         transparent 48%
       ),
       radial-gradient(
         115% 58% at 50% -8%,
-        rgba(46, 16, 101, 0.08) 0%,
+        rgba(15, 118, 110, 0.08) 0%,
         transparent 58%
       );
     opacity: 0.42;
@@ -394,25 +377,25 @@
     z-index: 1;
     background: linear-gradient(
       100deg,
-      rgba(91, 33, 182, 0.035) 0%,
+      rgba(45, 212, 191, 0.05) 0%,
       transparent 32%,
       transparent 68%,
-      rgba(46, 16, 101, 0.045) 100%
+      rgba(15, 118, 110, 0.06) 100%
     );
     opacity: 0.3;
     animation: jelly-gloss-shimmer 24s ease-in-out infinite 2s;
   }
 
   .dark .jelly-block {
-    border-color: rgba(124, 58, 237, 0.16);
+    border-color: rgba(34, 211, 238, 0.2);
     background-color: rgba(255, 255, 255, 0.038);
     backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     background-image:
       linear-gradient(
         95deg,
-        rgba(76, 29, 149, 0.09) 0%,
-        rgba(49, 46, 129, 0.04) 20%,
+        rgba(34, 211, 238, 0.1) 0%,
+        rgba(8, 47, 73, 0.12) 20%,
         transparent 42%
       ),
       linear-gradient(
@@ -433,36 +416,133 @@
     background:
       linear-gradient(
         100deg,
-        rgba(55, 48, 163, 0.12) 0%,
-        rgba(30, 27, 75, 0.055) 28%,
+        rgba(34, 211, 238, 0.1) 0%,
+        rgba(2, 12, 28, 0.35) 28%,
         transparent 50%
       ),
       radial-gradient(
         110% 52% at 50% -10%,
-        rgba(46, 16, 101, 0.13) 0%,
+        rgba(8, 47, 73, 0.4) 0%,
         transparent 62%
       );
     opacity: 0.4;
+  }
+
+  /* Sidenav: translucent float — glass over water (see aurora / page wash through) */
+  .jelly-block.jelly-block--float-glass {
+    backdrop-filter: blur(60px) saturate(1.36) contrast(1.03);
+    -webkit-backdrop-filter: blur(60px) saturate(1.36) contrast(1.03);
+    background-color: rgba(255, 255, 255, 0.34);
+    border-color: rgba(45, 212, 191, 0.3);
+    box-shadow:
+      0 0 0 1px rgba(125, 211, 252, 0.28),
+      0 10px 36px -6px rgba(15, 118, 110, 0.18),
+      0 28px 56px -14px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.52),
+      inset 0 -1px 0 0 rgba(15, 118, 110, 0.06),
+      inset 0 0 72px -28px rgba(45, 212, 191, 0.07);
+  }
+
+  .jelly-block.jelly-block--float-glass::before {
+    opacity: 0.55;
+  }
+
+  .jelly-block.jelly-block--float-glass::after {
+    opacity: 0.28;
+    animation: jelly-gloss-shimmer 20s ease-in-out infinite;
+  }
+
+  .dark .jelly-block.jelly-block--float-glass {
+    background-color: rgba(4, 16, 36, 0.44);
+    border-color: rgba(34, 211, 238, 0.34);
+    backdrop-filter: blur(64px) saturate(1.22) contrast(1.06) brightness(1.02);
+    -webkit-backdrop-filter: blur(64px) saturate(1.22) contrast(1.06) brightness(1.02);
+    background-image:
+      linear-gradient(
+        155deg,
+        rgba(255, 255, 255, 0.07) 0%,
+        transparent 35%
+      ),
+      linear-gradient(
+        95deg,
+        rgba(34, 211, 238, 0.08) 0%,
+        rgba(8, 47, 73, 0.16) 22%,
+        transparent 44%
+      ),
+      linear-gradient(
+        125deg,
+        var(--jelly-violet-ink) 0%,
+        var(--jelly-violet-deep) 24%,
+        var(--jelly-violet-mid) 40%,
+        var(--jelly-magenta-lit) 56%,
+        var(--jelly-violet-deep) 72%,
+        var(--jelly-violet-ink) 100%
+      );
+    background-size:
+      100% 100%,
+      100% 100%,
+      280% 280%;
+    box-shadow:
+      0 0 0 1px rgba(34, 211, 238, 0.16),
+      0 12px 42px -8px rgba(0, 0, 0, 0.45),
+      0 36px 72px -18px rgba(2, 8, 20, 0.65),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 90px -36px rgba(34, 211, 238, 0.09);
+  }
+
+  .dark .jelly-block.jelly-block--float-glass::before {
+    opacity: 0.42;
+  }
+
+  .dark .jelly-block.jelly-block--float-glass::after {
+    opacity: 0.2;
+    animation: jelly-gloss-shimmer 22s ease-in-out infinite;
+  }
+
+  /* Browser tile + docks — reads as a glass slab over the scene */
+  .glass-dock {
+    box-shadow:
+      0 0 0 1px rgba(15, 118, 110, 0.16),
+      0 16px 48px -12px rgba(8, 47, 73, 0.2),
+      0 32px 64px -20px rgba(15, 118, 110, 0.12);
+  }
+
+  .dark .glass-dock {
+    box-shadow:
+      0 0 0 1px rgba(34, 211, 238, 0.14),
+      0 20px 56px -10px rgba(0, 0, 0, 0.55),
+      0 40px 80px -24px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Main glass-jelly panes — subtle lift off the “water” */
+  .glass-panel--elevated {
+    filter: drop-shadow(0 10px 22px rgba(8, 47, 73, 0.22))
+      drop-shadow(0 0 14px rgba(45, 212, 191, 0.08));
+  }
+
+  .dark .glass-panel--elevated {
+    filter: drop-shadow(0 10px 21px rgba(0, 0, 0, 0.55))
+      drop-shadow(0 0 12px rgba(34, 211, 238, 0.06));
   }
 
   /* Sidenav while browser viewport is visible — block bright page bleed-through */
   .jelly-block--over-bright {
     backdrop-filter: blur(56px) saturate(1.28) contrast(1.02);
     -webkit-backdrop-filter: blur(56px) saturate(1.28) contrast(1.02);
-    background-color: rgba(252, 252, 254, 0.94);
-    border-color: rgba(91, 33, 182, 0.2);
+    background-color: rgba(248, 253, 252, 0.94);
+    border-color: rgba(45, 212, 191, 0.22);
     animation:
       jelly-gradient-drift 32s ease-in-out infinite reverse,
       jelly-slab-wobble 22s ease-in-out infinite;
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.08),
-      6px 0 32px -6px rgba(0, 0, 0, 0.14),
-      inset 0 0 48px -14px rgba(46, 16, 101, 0.045),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.09),
-      inset 0 -1px 0 0 rgba(30, 27, 75, 0.07),
+      0 0 0 1px rgba(15, 118, 110, 0.08),
+      6px 0 32px -6px rgba(15, 118, 110, 0.12),
+      inset 0 0 48px -14px rgba(45, 212, 191, 0.05),
+      inset 0 1px 0 0 rgba(125, 211, 252, 0.35),
+      inset 0 -1px 0 0 rgba(15, 118, 110, 0.08),
       inset 0 -20px 40px -26px var(--jelly-violet-shadow),
-      0 18px 44px -12px rgba(0, 0, 0, 0.12),
-      0 3px 10px rgba(0, 0, 0, 0.07);
+      0 18px 44px -12px rgba(0, 0, 0, 0.1),
+      0 3px 10px rgba(0, 0, 0, 0.06);
   }
 
   .jelly-block--over-bright::before {
@@ -475,16 +555,16 @@
   }
 
   .dark .jelly-block--over-bright {
-    background-color: rgba(14, 12, 22, 0.94);
-    border-color: rgba(124, 58, 237, 0.38);
+    background-color: rgba(4, 12, 24, 0.94);
+    border-color: rgba(34, 211, 238, 0.35);
     backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
     -webkit-backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
     background-image:
       linear-gradient(
         95deg,
-        rgba(10, 8, 18, 0.92) 0%,
-        rgba(14, 12, 22, 0.88) 38%,
-        rgba(14, 12, 22, 0.82) 100%
+        rgba(2, 8, 20, 0.95) 0%,
+        rgba(6, 20, 36, 0.9) 38%,
+        rgba(4, 14, 28, 0.88) 100%
       ),
       linear-gradient(
         128deg,
@@ -499,7 +579,7 @@
       0 0 0 1px rgba(0, 0, 0, 0.5),
       10px 0 40px -6px rgba(0, 0, 0, 0.65),
       inset 0 0 72px rgba(0, 0, 0, 0.32),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.14),
+      inset 0 1px 0 0 rgba(34, 211, 238, 0.12),
       inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
       0 22px 56px -14px rgba(0, 0, 0, 0.45),
       0 4px 16px rgba(0, 0, 0, 0.3);
@@ -510,12 +590,12 @@
     background:
       linear-gradient(
         100deg,
-        rgba(55, 48, 163, 0.15) 0%,
+        rgba(34, 211, 238, 0.12) 0%,
         transparent 42%
       ),
       radial-gradient(
         110% 48% at 50% -6%,
-        rgba(30, 27, 50, 0.35) 0%,
+        rgba(8, 47, 73, 0.45) 0%,
         transparent 58%
       );
   }
@@ -530,13 +610,35 @@
     padding-right: 3.25rem !important;
   }
 
-  /* ── Ambient glow orbs (jellyfish bioluminescence) ────────────────────── */
+  /* Full-app wash behind aurora + glass (mint / abyss) */
+  .ocean-page-bg {
+    background: linear-gradient(
+      168deg,
+      var(--ocean-page-top) 0%,
+      var(--ocean-page-bottom) 45%,
+      var(--ocean-page-top) 100%
+    );
+    background-size: 100% 220%;
+    animation: ocean-page-shift 36s ease-in-out infinite;
+  }
+
+  @keyframes ocean-page-shift {
+    0%,
+    100% {
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 0% 100%;
+    }
+  }
+
+  /* ── Ambient glow orbs (underwater caustics) ─────────────────────────── */
   .jelly-orbs {
     position: fixed;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    z-index: 0;
+    z-index: 1;
   }
 
   .jelly-orb {
@@ -598,11 +700,11 @@
 /* ── Scrollbar — subtle, theme-aware ──────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  scrollbar-color: rgba(15, 118, 110, 0.25) transparent;
 }
 
 .dark * {
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: rgba(34, 211, 238, 0.22) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -615,12 +717,12 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(15, 118, 110, 0.22);
   border-radius: 999px;
 }
 
 .dark *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(34, 211, 238, 0.18);
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -636,20 +738,18 @@
   .jelly-orb,
   .glass-jelly,
   .jelly-block,
-  .jelly-block--over-bright {
+  .jelly-block--over-bright,
+  .ocean-page-bg {
     animation: none !important;
+  }
+
+  .ocean-page-bg {
+    background-size: 100% 100%;
   }
 
   .glass-jelly::after,
   .jelly-block::after {
     animation: none !important;
-  }
-
-  .glass-jelly,
-  .jelly-block {
-    background-size:
-      100% 100%,
-      100% 100% !important;
   }
 
   .glass-jelly,

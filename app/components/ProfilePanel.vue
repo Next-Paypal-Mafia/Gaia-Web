@@ -68,7 +68,8 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="glass-jelly h-full w-full rounded-2xl flex flex-col ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
+  <LiquidGlassPanel>
+    <div class="flex flex-col h-full min-h-0 w-full">
     <!-- Header -->
     <div class="flex items-center gap-3 px-6 py-5 shrink-0 border-b border-muted">
       <button
@@ -239,7 +240,8 @@ async function handleLogout() {
         </button>
       </div>
     </div>
-  </div>
+    </div>
+  </LiquidGlassPanel>
 </template>
 
 <style scoped>

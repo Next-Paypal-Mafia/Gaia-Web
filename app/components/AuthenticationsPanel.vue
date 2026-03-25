@@ -133,7 +133,8 @@ function cancelDelete() {
 </script>
 
 <template>
-  <div class="glass-jelly flex flex-col h-full w-full rounded-2xl overflow-hidden min-h-0 ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
+  <LiquidGlassPanel>
+    <div class="flex flex-col h-full min-h-0 w-full overflow-hidden">
     <!-- Header -->
     <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
       <div class="min-w-0">
@@ -380,5 +381,6 @@ function cancelDelete() {
         </div>
       </template>
     </UModal>
-  </div>
+    </div>
+  </LiquidGlassPanel>
 </template>

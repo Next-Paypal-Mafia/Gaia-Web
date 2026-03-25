@@ -531,15 +531,10 @@ function onSendInstruction(text: string) {
 </script>
 
 <template>
-<div class="h-screen flex bg-default overflow-hidden relative">
-  <!-- Jellyfish ambient glow orbs -->
-  <div class="jelly-orbs">
-    <div class="jelly-orb jelly-orb--1" />
-    <div class="jelly-orb jelly-orb--2" />
-    <div class="jelly-orb jelly-orb--3" />
-  </div>
+<div class="h-screen flex ocean-page-bg overflow-hidden relative text-default">
+  <AppAmbientBackground />
   <!-- Left side panel -->
-  <SidePanel :expanded="sidebarExpanded" :is-browser-view="hoverSidebarActive" :chat-history="chatsWithMessages"
+  <SidePanel class="relative z-50" :expanded="sidebarExpanded" :is-browser-view="hoverSidebarActive" :chat-history="chatsWithMessages"
     :active-chat-id="activeChatId" :active-view="activeView" :active-workflow-id="activeWorkflowId"
     :pinned-workflows="wf.pinnedWorkflows.value" @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true"
     @new-chat="onNewChat" @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
@@ -547,43 +542,81 @@ function onSendInstruction(text: string) {
     @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
 
   <!-- Right side -->
-  <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
+  <div class="relative z-10 flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
     <!-- ═══ Landing / Welcome page ═══ -->
     <Transition name="landing-leave">
       <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
-        <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
-          <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
-            <UIcon name="i-lucide-earth" class="size-8 text-primary" />
-          </div>
-          <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">Welcome to jellybyte</h1>
-          <p class="text-sm text-muted mb-8">Describe a task and I'll browse the web for you.</p>
+        <ClientOnly>
+          <LiquidGlassPanel variant="hero">
+            <div class="flex flex-col items-center w-full px-8 py-10">
+              <div class="size-14 rounded-2xl bg-primary/12 flex items-center justify-center mb-5 ring-1 ring-primary/20 shadow-lg shadow-primary/10">
+                <UIcon name="i-lucide-earth" class="size-8 text-primary" />
+              </div>
+              <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight bg-gradient-to-r from-teal-700 via-cyan-600 to-teal-600 dark:from-cyan-200 dark:via-teal-200 dark:to-cyan-100 bg-clip-text text-transparent">
+                Welcome to jellybyte
+              </h1>
+              <p class="text-sm text-muted mb-8 text-center max-w-md">Describe a task and I'll browse the web for you.</p>
 
-          <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
-            <div class="relative group">
-              <UTextarea v-model="landingInput"
-                :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
-                :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
-                class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
-              <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
-                class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
-                <UIcon name="i-lucide-arrow-up" class="size-4" />
-              </button>
+              <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
+                <div class="relative group">
+                  <UTextarea v-model="landingInput"
+                    :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
+                    :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
+                    class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
+                  <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
+                    class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95 shadow-md shadow-primary/25">
+                    <UIcon name="i-lucide-arrow-up" class="size-4" />
+                  </button>
+                </div>
+              </form>
+
+              <div class="flex flex-wrap justify-center gap-2 mt-6">
+                <button v-for="s in suggestions" :key="s"
+                  class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/50 dark:bg-white/5 hover:bg-default/75 dark:hover:bg-white/10 transition-all duration-300 border border-default/35 dark:border-white/10 hover:border-primary/35 active:scale-[0.97]"
+                  :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
+                  @click="onLandingSend(s)">
+                  {{ s }}
+                </button>
+              </div>
+
+              <p class="text-[11px] text-dimmed mt-8 text-center">
+                jellybyte can make mistakes. Verify important information.
+              </p>
             </div>
-          </form>
-
-          <div class="flex flex-wrap justify-center gap-2 mt-6">
-            <button v-for="s in suggestions" :key="s"
-              class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
-              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
-              @click="onLandingSend(s)">
-              {{ s }}
-            </button>
-          </div>
-
-          <p class="text-[11px] text-dimmed mt-8">
-            jellybyte can make mistakes. Verify important information.
-          </p>
-        </div>
+          </LiquidGlassPanel>
+          <template #fallback>
+            <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
+              <div class="size-14 rounded-2xl bg-primary/12 flex items-center justify-center mb-5">
+                <UIcon name="i-lucide-earth" class="size-8 text-primary" />
+              </div>
+              <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">Welcome to jellybyte</h1>
+              <p class="text-sm text-muted mb-8">Describe a task and I'll browse the web for you.</p>
+              <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
+                <div class="relative group">
+                  <UTextarea v-model="landingInput"
+                    :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
+                    :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
+                    class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
+                  <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
+                    class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
+                    <UIcon name="i-lucide-arrow-up" class="size-4" />
+                  </button>
+                </div>
+              </form>
+              <div class="flex flex-wrap justify-center gap-2 mt-6">
+                <button v-for="s in suggestions" :key="s"
+                  class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
+                  :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
+                  @click="onLandingSend(s)">
+                  {{ s }}
+                </button>
+              </div>
+              <p class="text-[11px] text-dimmed mt-8">
+                jellybyte can make mistakes. Verify important information.
+              </p>
+            </div>
+          </template>
+        </ClientOnly>
       </div>
     </Transition>
 
@@ -601,7 +634,7 @@ function onSendInstruction(text: string) {
               ]">
                 <!-- Viewport tile -->
                 <div class="browser-grid__viewport min-h-0">
-                  <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
+                  <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col glass-dock">
                     <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
                       :is-connected="screencast.isStreaming.value" :is-loading="false"
                       :page-background-color="screencast.pageBackgroundColor.value" />
@@ -686,23 +719,107 @@ function onSendInstruction(text: string) {
 </template>
 
 <style scoped>
-/* ── Landing glass input ──────────────────────────────────────────────── */
+/* ── Landing hero (liquid glass) entrance ───────────────────────────── */
+.landing-liquid-glass {
+  animation: landing-hero-rise 0.88s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes landing-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-liquid-glass {
+    animation: none;
+  }
+}
+
+/* ── Landing glass input (default glow + stronger on focus) ───────────── */
+@keyframes landing-input-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--ui-color-primary-500), transparent 72%),
+      0 0 20px -4px color-mix(in oklch, var(--ui-color-primary-500), transparent 62%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--ui-color-primary-500), transparent 65%),
+      0 0 32px -4px color-mix(in oklch, var(--ui-color-primary-500), transparent 48%);
+  }
+}
+
+@keyframes landing-input-glow-pulse-dark {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.28),
+      0 0 24px -6px rgba(34, 211, 238, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.4),
+      0 0 40px -4px rgba(34, 211, 238, 0.42);
+  }
+}
+
 .landing-glass-input :deep(textarea) {
   background: rgba(0, 0, 0, 0.02) !important;
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
   border-radius: 1rem !important;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--ui-color-primary-500), transparent 72%),
+    0 0 24px -6px color-mix(in oklch, var(--ui-color-primary-500), transparent 58%) !important;
+  animation: landing-input-glow-pulse 3.2s ease-in-out infinite;
 }
 
 :global(.dark) .landing-glass-input :deep(textarea) {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(45, 212, 191, 0.22) !important;
+  box-shadow:
+    0 0 0 1px rgba(45, 212, 191, 0.28),
+    0 0 28px -8px rgba(34, 211, 238, 0.32) !important;
+  animation: landing-input-glow-pulse-dark 3.2s ease-in-out infinite;
 }
 
 .landing-glass-input :deep(textarea:focus) {
   border-color: var(--ui-color-primary-500) !important;
-  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
-  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
+  animation: none;
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--ui-color-primary-500), transparent 55%),
+    0 0 36px -4px color-mix(in oklch, var(--ui-color-primary-500), transparent 42%) !important;
+}
+
+:global(.dark) .landing-glass-input :deep(textarea:focus) {
+  border-color: rgba(34, 211, 238, 0.65) !important;
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.25),
+    0 0 44px -4px rgba(34, 211, 238, 0.45) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-glass-input :deep(textarea) {
+    animation: none;
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--ui-color-primary-500), transparent 68%),
+      0 0 22px -6px color-mix(in oklch, var(--ui-color-primary-500), transparent 52%) !important;
+  }
+
+  :global(.dark) .landing-glass-input :deep(textarea) {
+    animation: none;
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.32),
+      0 0 26px -8px rgba(34, 211, 238, 0.36) !important;
+  }
 }
 
 /* ── Shared: GPU-friendly, reduce paint ───────────────────────────────── */

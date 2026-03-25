@@ -257,19 +257,21 @@ watch(
 
 <template>
   <div
-    class="relative shrink-0 transition-[width] duration-300 ease-out"
-    :style="{ width: expanded && !isBrowserView ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
+    class="relative shrink-0 transition-[width] duration-300 ease-out pl-1"
+    :style="{ width: expanded && !isBrowserView ? 'calc(280px + 1rem)' : 'calc(4.25rem + 1rem)' }"
   >
     <aside
       ref="sidePanelAsideRef"
-      class="sidebar-aside jelly-block flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50"
-      :class="[
-        expanded ? 'sidebar-expanded' : 'sidebar-rail',
-        isBrowserView ? 'jelly-block--over-bright' : '',
-        expanded && isBrowserView ? 'ring-1 ring-fuchsia-500/15 dark:ring-pink-400/20' : '',
-      ]"
+      class="sidebar-aside flex flex-col min-h-0 absolute top-3 bottom-3 left-2 z-50"
+      :class="[expanded ? 'sidebar-expanded' : 'sidebar-rail']"
       @mouseenter="isBrowserView && emit('expand')"
       @mouseleave="onAsidePointerLeave"
+    >
+    <LiquidGlassPanel
+      variant="sidebar"
+      :bright-backdrop="!!isBrowserView"
+      :emphasized="expanded && !!isBrowserView"
+      class="min-h-0 flex-1 w-full basis-0 min-w-0"
     >
     <!-- Icon rail (default) -->
     <div
@@ -653,6 +655,8 @@ watch(
       </div>
     </div>
 
+    </LiquidGlassPanel>
+
     <SettingsModal v-model:open="settingsOpen" />
     <SearchModal
       v-model:open="searchOpen"
@@ -716,15 +720,13 @@ watch(
   width: 280px;
   min-width: 280px;
   opacity: 1;
-  margin: 0.5rem;
-  margin-right: 0;
+  margin: 0;
 }
 .sidebar-rail {
   width: 4.25rem;
   min-width: 4.25rem;
   opacity: 1;
-  margin: 0.5rem;
-  margin-right: 0;
+  margin: 0;
 }
 
 .sidebar-rail-btn {

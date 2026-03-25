@@ -15,7 +15,7 @@ const emit = defineEmits<{
       role="region"
       aria-labelledby="task-feedback-heading"
     >
-      <div class="h-0.5 w-full bg-gradient-to-r from-primary/40 via-fuchsia-400/50 to-primary/40" />
+      <div class="h-0.5 w-full bg-gradient-to-r from-primary/45 via-cyan-400/50 to-teal-400/45 dark:from-cyan-400/35 dark:via-teal-400/40 dark:to-cyan-300/35" />
 
       <div class="p-4 sm:p-5 space-y-4">
         <div class="flex gap-3 sm:gap-4">
