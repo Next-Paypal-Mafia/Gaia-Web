@@ -189,6 +189,36 @@ function getPinnedMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 }
 
 const workflowsSectionRef = ref<HTMLElement | null>(null)
+const sidePanelAsideRef = ref<HTMLElement | null>(null)
+
+/** Portaled dropdowns sit outside the aside; mouseleave would collapse the hover rail and break anchoring. */
+const sidebarMenusOpenCount = ref(0)
+
+function trackSidebarDropdownOpen(open: boolean) {
+  sidebarMenusOpenCount.value += open ? 1 : -1
+  if (sidebarMenusOpenCount.value < 0)
+    sidebarMenusOpenCount.value = 0
+}
+
+function onAsidePointerLeave() {
+  if (!props.isBrowserView)
+    return
+  if (sidebarMenusOpenCount.value > 0)
+    return
+  emit('toggle')
+}
+
+watch(sidebarMenusOpenCount, (count, prev) => {
+  if (!props.isBrowserView || prev === undefined)
+    return
+  if (prev <= 0 || count > 0)
+    return
+  nextTick(() => {
+    const el = sidePanelAsideRef.value
+    if (el && !el.matches(':hover'))
+      emit('toggle')
+  })
+})
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 const initials = computed(() => {
@@ -231,6 +261,7 @@ watch(
     :style="{ width: expanded && !isBrowserView ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
   >
     <aside
+      ref="sidePanelAsideRef"
       class="sidebar-aside jelly-block flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50"
       :class="[
         expanded ? 'sidebar-expanded' : 'sidebar-rail',
@@ -238,7 +269,7 @@ watch(
         expanded && isBrowserView ? 'ring-1 ring-fuchsia-500/15 dark:ring-pink-400/20' : '',
       ]"
       @mouseenter="isBrowserView && emit('expand')"
-      @mouseleave="isBrowserView && emit('toggle')"
+      @mouseleave="onAsidePointerLeave"
     >
     <!-- Icon rail (default) -->
     <div
@@ -312,8 +343,9 @@ watch(
 
       <UDropdownMenu
         :items="railChatMenuItems"
-        :content="{ align: 'start', side: 'right' }"
+        :content="{ align: 'start', side: 'right', positionStrategy: 'fixed' }"
         :disabled="!chatHistory.length"
+        @update:open="trackSidebarDropdownOpen"
       >
         <button
           type="button"
@@ -327,8 +359,9 @@ watch(
 
       <UDropdownMenu
         :items="railWorkflowMenuItems"
-        :content="{ align: 'start', side: 'right' }"
+        :content="{ align: 'start', side: 'right', positionStrategy: 'fixed' }"
         :disabled="!pinnedWorkflows.length"
+        @update:open="trackSidebarDropdownOpen"
       >
         <button
           type="button"
@@ -497,7 +530,8 @@ watch(
             <span v-else class="truncate">{{ chat.title }}</span>
             <UDropdownMenu
               :items="getChatMenuItems(chat)"
-              :content="{ align: 'start', side: 'bottom' }"
+              :content="{ align: 'start', side: 'bottom', positionStrategy: 'fixed' }"
+              @update:open="trackSidebarDropdownOpen"
             >
               <UButton
                 icon="i-lucide-ellipsis"
@@ -554,7 +588,8 @@ watch(
               />
               <UDropdownMenu
                 :items="getPinnedMenuItems(wf)"
-                :content="{ align: 'start', side: 'bottom' }"
+                :content="{ align: 'start', side: 'bottom', positionStrategy: 'fixed' }"
+                @update:open="trackSidebarDropdownOpen"
               >
                 <UButton
                   icon="i-lucide-ellipsis"

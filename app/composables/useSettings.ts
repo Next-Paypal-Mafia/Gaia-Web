@@ -2,6 +2,7 @@
 let _username: Ref<string> | null = null
 let _profilePicture: Ref<string> | null = null
 let _isLoggedIn: Ref<boolean> | null = null
+let _shareLocationWithBackend: Ref<boolean> | null = null
 
 export function useSettings() {
   if (!_username) {
@@ -25,9 +26,22 @@ export function useSettings() {
     }
   }
 
+  if (!_shareLocationWithBackend) {
+    _shareLocationWithBackend = ref(
+      import.meta.client ? localStorage.getItem('jellybyte:shareLocationWithBackend') === 'true' : false,
+    )
+    if (import.meta.client) {
+      watch(_shareLocationWithBackend, (val) =>
+        localStorage.setItem('jellybyte:shareLocationWithBackend', String(val)),
+      )
+    }
+  }
+
   return {
     username: _username as Ref<string>,
     profilePicture: _profilePicture as Ref<string>,
     isLoggedIn: _isLoggedIn as Ref<boolean>,
+    /** When true (and signed in), client reports coarse location to the agent server on an interval */
+    shareLocationWithBackend: _shareLocationWithBackend as Ref<boolean>,
   }
 }

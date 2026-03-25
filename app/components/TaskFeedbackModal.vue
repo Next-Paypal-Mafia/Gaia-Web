@@ -3,11 +3,12 @@ const open = defineModel<boolean>("open", { default: false })
 
 const emit = defineEmits<{
   vote: [sentiment: "positive" | "negative"]
+  bannerEntered: []
 }>()
 </script>
 
 <template>
-  <Transition name="task-feedback-banner">
+  <Transition name="task-feedback-banner" @after-enter="emit('bannerEntered')">
     <div
       v-if="open"
       class="survey-card w-full rounded-2xl overflow-hidden border border-default/25 dark:border-white/10 bg-white/75 dark:bg-white/[0.06] backdrop-blur-2xl shadow-lg dark:shadow-black/30 ring-1 ring-black/5 dark:ring-white/5"

@@ -5,6 +5,14 @@ const emit = defineEmits<{
 
 const settings = useSettings()
 const supabase = useSupabaseClient()
+const config = useRuntimeConfig()
+
+const shareLocationModel = computed({
+  get: () => settings.shareLocationWithBackend.value,
+  set: (v: boolean) => {
+    settings.shareLocationWithBackend.value = v
+  },
+})
 
 const editMode = ref(false)
 const editName = ref('')
@@ -184,6 +192,30 @@ async function handleLogout() {
                   <span class="text-sm text-dimmed">System</span>
                 </template>
               </ClientOnly>
+            </div>
+
+            <!-- Location sharing (signed-in only) -->
+            <div v-if="userEmail" class="px-4 py-3.5 space-y-2">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex items-start gap-3 min-w-0">
+                  <UIcon name="i-lucide-map-pin" class="size-4 text-muted shrink-0 mt-0.5" />
+                  <div class="min-w-0">
+                    <p class="text-sm text-default font-medium">Location sharing</p>
+                    <p class="text-xs text-dimmed mt-0.5 leading-relaxed">
+                      When on, your browser may prompt for permission. We receive an approximate position about every 10 minutes at our API while you stay signed in.
+                    </p>
+                    <p v-if="!config.public.serverUrl" class="text-[11px] text-amber-600 dark:text-amber-400/90 mt-1.5">
+                      Set <code class="font-mono text-[10px]">NUXT_PUBLIC_SERVER_URL</code> so reports can reach your backend.
+                    </p>
+                  </div>
+                </div>
+                <ClientOnly>
+                  <USwitch v-model="shareLocationModel" size="md" />
+                  <template #fallback>
+                    <span class="text-xs text-dimmed">—</span>
+                  </template>
+                </ClientOnly>
+              </div>
             </div>
 
             <!-- Data -->

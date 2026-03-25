@@ -3,8 +3,10 @@ const props = defineProps<{
   isAgentRunning: boolean
   isConnected: boolean
   inputLocked?: boolean
-  /** Task-completion survey is open — block sending until user votes */
+  /** Survey is required (timer fired) — used with surveyBannerVisible for when to lock UI */
   surveyPending?: boolean
+  /** Survey card has finished entering — until then do not lock input or imply it is visible */
+  surveyBannerVisible?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -14,8 +16,13 @@ const emit = defineEmits<{
 
 const input = ref("")
 
+const surveyLocksInput = computed(
+  () => !!props.surveyPending && !!props.surveyBannerVisible,
+)
+
 const inputPlaceholder = computed(() => {
-  if (props.surveyPending) return "Answer the quick feedback above to continue chatting..."
+  if (props.surveyPending && !props.surveyBannerVisible) return "Preparing quick feedback…"
+  if (surveyLocksInput.value) return "Answer the quick feedback above to continue chatting..."
   if (props.inputLocked) return "Agent is busy in another chat..."
   if (props.isAgentRunning) return "Wait for the reply or stop the agent to send another message..."
   if (props.isConnected) return "Ask jellybyte to do something..."
@@ -23,7 +30,7 @@ const inputPlaceholder = computed(() => {
 })
 
 function onSubmit() {
-  if (props.surveyPending || props.isAgentRunning || props.inputLocked) return
+  if (surveyLocksInput.value || props.isAgentRunning || props.inputLocked) return
   const text = input.value.trim()
   if (!text) return
   emit("send", text)
@@ -31,7 +38,7 @@ function onSubmit() {
 }
 
 function onEnter(e: KeyboardEvent) {
-  if (props.surveyPending || props.isAgentRunning || props.inputLocked) {
+  if (surveyLocksInput.value || props.isAgentRunning || props.inputLocked) {
     e.preventDefault()
     return
   }
@@ -46,7 +53,7 @@ function onEnter(e: KeyboardEvent) {
         v-model="input"
         type="text"
         :placeholder="inputPlaceholder"
-        :disabled="!isConnected || surveyPending || inputLocked || isAgentRunning"
+        :disabled="!isConnected || surveyLocksInput || inputLocked || isAgentRunning"
         class="flex-1 bg-transparent text-sm text-default placeholder-dimmed outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         @keydown.enter.exact.prevent="onEnter"
       >
@@ -54,7 +61,7 @@ function onEnter(e: KeyboardEvent) {
         <button
           v-if="!isAgentRunning"
           type="submit"
-          :disabled="!input.trim() || !isConnected || surveyPending || inputLocked"
+          :disabled="!input.trim() || !isConnected || surveyLocksInput || inputLocked"
           class="size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95"
         >
           <UIcon name="i-lucide-arrow-up" class="size-4" />

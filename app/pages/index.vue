@@ -127,6 +127,13 @@ const showLanding = computed(() =>
 
 /** Beta task-completion feedback: short delay after agent finishes */
 const taskFeedbackOpen = ref(false)
+/** True after the survey card has entered (avoid locking input before it is visible) */
+const taskFeedbackBannerEntered = ref(false)
+watch(taskFeedbackOpen, (open) => {
+  if (!open)
+    taskFeedbackBannerEntered.value = false
+})
+const surveyLocksChat = computed(() => taskFeedbackOpen.value && taskFeedbackBannerEntered.value)
 let taskFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 const taskFeedbackAssistantId = ref<string | null>(null)
 function dismissTaskFeedbackForAssistant(id: string) {
@@ -253,7 +260,7 @@ function setActiveChatTitleFromText(text: string) {
 }
 
 function onLandingSend(text?: string) {
-  if (agent.isAgentRunning.value || taskFeedbackOpen.value) return
+  if (agent.isAgentRunning.value || surveyLocksChat.value) return
   const msg = (text ?? landingInput.value).trim()
   if (!msg) return
   clearTaskFeedbackTimer()
@@ -511,7 +518,7 @@ function onDeleteChat(id: string) {
 }
 
 function onSendInstruction(text: string) {
-  if (agent.isAgentRunning.value || taskFeedbackOpen.value) return
+  if (agent.isAgentRunning.value || surveyLocksChat.value) return
   clearTaskFeedbackTimer()
   // If sending from a chat that isn't the streaming one, rebind first
   bindAgentToActiveChat()
@@ -554,10 +561,10 @@ function onSendInstruction(text: string) {
           <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
             <div class="relative group">
               <UTextarea v-model="landingInput"
-                :placeholder="taskFeedbackOpen ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
-                :disabled="agent.isAgentRunning.value || taskFeedbackOpen" autoresize :rows="2" :maxrows="5" size="lg"
+                :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
+                :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
                 class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
-              <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || taskFeedbackOpen"
+              <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
                 class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
                 <UIcon name="i-lucide-arrow-up" class="size-4" />
               </button>
@@ -567,7 +574,7 @@ function onSendInstruction(text: string) {
           <div class="flex flex-wrap justify-center gap-2 mt-6">
             <button v-for="s in suggestions" :key="s"
               class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
-              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || taskFeedbackOpen }"
+              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
               @click="onLandingSend(s)">
               {{ s }}
             </button>
@@ -628,7 +635,8 @@ function onSendInstruction(text: string) {
                 <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
                   <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
                     :status="currentStatus" :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
-                    @task-feedback-vote="onTaskFeedbackVote" />
+                    @task-feedback-vote="onTaskFeedbackVote"
+                    @task-feedback-banner-entered="taskFeedbackBannerEntered = true" />
                 </div>
               </div>
             </div>
@@ -637,6 +645,7 @@ function onSendInstruction(text: string) {
               <div class="w-full max-w-3xl">
                 <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
                   :survey-pending="taskFeedbackOpen"
+                  :survey-banner-visible="taskFeedbackBannerEntered"
                   :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
                   @stop="agent.stop" />
               </div>

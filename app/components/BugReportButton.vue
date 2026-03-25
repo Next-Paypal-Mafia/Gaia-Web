@@ -69,8 +69,9 @@ async function onSubmit() {
     <UModal
       v-model:open="open"
       :ui="{
-        content: 'max-w-md w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl bg-white/90 dark:bg-white/[0.06] backdrop-blur-2xl border border-black/8 dark:border-white/10 shadow-2xl',
-        overlay: 'backdrop-blur-md bg-black/30 dark:bg-black/50',
+        content:
+          'max-w-md w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 shadow-2xl ring-1 ring-black/5 dark:ring-white/10',
+        overlay: 'bg-black/45 dark:bg-black/55',
         header: 'hidden',
         footer: 'hidden',
       }"
@@ -91,7 +92,7 @@ async function onSubmit() {
             </div>
             <button
               type="button"
-              class="shrink-0 size-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-default hover:brightness-125 transition-all"
+              class="shrink-0 size-9 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-default hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
               aria-label="Close"
               @click="open = false"
             >
