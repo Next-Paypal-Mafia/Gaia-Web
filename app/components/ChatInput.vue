@@ -47,7 +47,7 @@ function onEnter(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="px-5 py-3 bg-white/60 dark:bg-white/[0.04] backdrop-blur-2xl rounded-full shadow-lg dark:shadow-xl dark:shadow-black/20 border border-black/[0.06] dark:border-white/[0.08]">
+  <div class="px-5 py-3 bg-white/60 dark:bg-white/4 backdrop-blur-2xl rounded-full shadow-lg dark:shadow-xl dark:shadow-black/20 border border-black/6 dark:border-white/8">
     <form class="flex items-center gap-3" @submit.prevent="onSubmit">
       <input
         v-model="input"

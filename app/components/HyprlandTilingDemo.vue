@@ -117,7 +117,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full min-h-[480px] w-full max-w-6xl mx-auto rounded-xl bg-default/30 ring-1 ring-default/40 overflow-hidden">
+  <div class="flex flex-col h-full min-h-screen w-full max-w-6xl mx-auto rounded-xl bg-default/30 ring-1 ring-default/40 overflow-hidden">
     <!-- Toolbar -->
     <div class="shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-b border-default/30 bg-elevated/80">
       <span class="text-sm font-semibold text-default mr-2">Hyprland-style tiling</span>
@@ -145,7 +145,7 @@ onMounted(() => {
       <TransitionGroup
         name="hypr"
         tag="div"
-        class="relative w-full h-full min-h-[400px]"
+         class="relative w-full h-full min-h-96"
       >
         <div
           v-for="w in windows"
@@ -179,7 +179,7 @@ onMounted(() => {
                 </button>
               </div>
               <div class="flex-1 min-h-0 p-3 text-xs text-default/70 flex items-center justify-center">
-                <p class="text-center max-w-[200px]">
+                 <p class="text-center max-w-50">
                   Dwindle split · pop-in / smooth-out · FLIP move
                 </p>
               </div>

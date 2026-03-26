@@ -102,7 +102,7 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 <template>
   <div class="glass-jelly h-full w-full rounded-2xl overflow-hidden flex flex-col ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
-    <div class="px-6 py-5 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between gap-3">
+    <div class="px-6 py-5 border-b border-black/6 dark:border-white/6 flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-semibold text-default leading-tight">Dashboard</h1>
         <p class="text-xs text-dimmed">Your workflows, automations, and CRON jobs</p>
@@ -141,7 +141,7 @@ function getMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
           <div
             v-for="wf in workflows"
             :key="wf.id"
-            class="group relative text-left rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.06] hover:border-primary/20 transition-all p-4 cursor-pointer"
+            class="group relative text-left rounded-2xl bg-black/2 dark:bg-white/3 hover:bg-black/4 dark:hover:bg-white/6 border border-black/6 dark:border-white/6 hover:border-primary/20 transition-all p-4 cursor-pointer"
             @click="renamingId !== wf.id && emit('openWorkflow', wf.id, wf.title)"
           >
             <div class="flex items-start justify-between gap-2">

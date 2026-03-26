@@ -80,7 +80,7 @@ watch(open, (val) => {
     }"
   >
     <template #body>
-      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-2xl">
+      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-white/80 dark:bg-white/3 backdrop-blur-2xl border border-black/6 dark:border-white/8 shadow-2xl">
         <!-- Header: search input + close -->
         <div class="flex items-center gap-2 px-4 pt-4 pb-3 shrink-0">
           <UInput
@@ -88,20 +88,20 @@ watch(open, (val) => {
             placeholder="Search chats and workflows..."
             class="flex-1"
             size="md"
-            :ui="{ base: 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.1] dark:border-white/10' }"
+            :ui="{ base: 'bg-black/2 dark:bg-white/4 border-black/10 dark:border-white/10' }"
             autofocus
           >
             <template #leading>
               <UIcon name="i-lucide-search" class="size-4 text-muted" />
             </template>
           </UInput>
-          <button
-            class="size-9 shrink-0 rounded-full bg-black/[0.02] dark:bg-white/[0.04] flex items-center justify-center text-default hover:brightness-125 transition-all"
-            aria-label="Close"
-            @click="open = false"
-          >
-            <UIcon name="i-lucide-x" class="size-[18px]" />
-          </button>
+           <button
+             class="size-9 shrink-0 rounded-full bg-black/2 dark:bg-white/4 flex items-center justify-center text-default hover:brightness-125 transition-all"
+             aria-label="Close"
+             @click="open = false"
+           >
+             <UIcon name="i-lucide-x" class="size-4.5" />
+           </button>
         </div>
 
         <!-- Results list -->
@@ -113,7 +113,7 @@ watch(open, (val) => {
                 v-for="chat in filteredChats"
                 :key="chat.id"
                 class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full"
-                :class="chat.id === activeChatId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default'"
+                :class="chat.id === activeChatId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/3 dark:hover:bg-white/6 hover:text-default'"
                 @click="selectChatAndClose(chat.id)"
               >
                 <UIcon name="i-lucide-message-circle" class="size-4 shrink-0 text-muted" />
@@ -128,7 +128,7 @@ watch(open, (val) => {
               <button
                 v-for="workflow in filteredWorkflows"
                 :key="workflow.id"
-                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-black/3 dark:hover:bg-white/6 hover:text-default"
                 @click="selectWorkflowAndClose(workflow.id)"
               >
                 <UIcon name="i-lucide-git-branch" class="size-4 shrink-0 text-muted" />

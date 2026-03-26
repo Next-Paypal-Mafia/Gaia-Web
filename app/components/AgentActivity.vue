@@ -36,112 +36,6 @@ function onTaskFeedbackBannerEntered() {
   emit('taskFeedbackBannerEntered')
 }
 
-const feedContainer = ref<HTMLElement>()
-const expandedSteps = ref<Set<string>>(new Set())
-
-const stepGroups = computed<StepGroup[]>(() => {
-  const groups: StepGroup[] = []
-  const assistantMsgs = props.messages.filter(m => m.role === 'assistant')
-
-  for (const [msgIdx, msg] of assistantMsgs.entries()) {
-    const items: StepGroup['items'] = []
-    for (const [partIdx, part] of msg.parts.entries()) {
-      if (isToolPart(part) || (part.type === 'reasoning' && (part as any).text?.trim())) {
-        items.push({ ...part, _partIdx: partIdx })
-      }
-    }
-    if (items.length === 0) continue
-
-    const isLast = msgIdx === assistantMsgs.length - 1
-    groups.push({
-      msgId: msg.id,
-      title: deriveTitleFromItems(items),
-      items,
-      isCompleted: !isLast || !props.isAgentRunning,
-    })
-  }
-
-  return groups
-})
-
-const totalActions = computed(() =>
-  stepGroups.value.reduce((sum, g) => sum + g.items.length, 0),
-)
-
-function isBetaFeedbackMessage(msg: UIMessage): boolean {
-  return msg.role === 'user' && msg.parts.some(p => p.type === 'beta-feedback')
-}
-
-const currentPrompt = computed(() => {
-  const lastUser = [...props.messages].reverse().find(
-    m => m.role === 'user' && !isBetaFeedbackMessage(m),
-  )
-  if (!lastUser) return null
-  const textPart = lastUser.parts.find(p => p.type === 'text')
-  return (textPart as any)?.text ?? null
-})
-
-function deriveTitleFromItems(items: StepGroup['items']): string {
-  const reasoning = items.find(i => i.type === 'reasoning')
-  if (reasoning) {
-    const text = (reasoning as any).text as string
-    const sentence = (text.split(/[.!?\n]/)[0] || '').trim()
-    if (sentence.length > 3) return sentence.length > 80 ? sentence.slice(0, 77) + '...' : sentence
-  }
-
-  const tools = items.filter(i => isToolPart(i))
-  if (tools.length === 0) return 'Thinking'
-
-  const first = tools[0]
-  const name = toolName(first)
-  const detail = toolDetail(name, first)
-
-  if (name === 'navigate' || name === 'playwright_browser_navigate') {
-    try { return `Browsing ${new URL(detail).hostname}` } catch { return 'Navigating' }
-  }
-  if (name === 'websearch' || name === 'Exa_web_search_exa') return 'Searching the web'
-
-  const labels = [...new Set(tools.map(t => toolLabel(toolName(t))))]
-  return labels.slice(0, 3).join(', ')
-}
-
-// Auto-expand the latest step while running; expand ALL on completion
-watch(() => stepGroups.value.length, (len, prev) => {
-  if (len === 0) return
-  if (props.isAgentRunning && len > (prev ?? 0)) {
-    const latest = stepGroups.value[len - 1]
-    if (latest) expandedSteps.value = new Set([latest.msgId])
-  }
-  scrollToBottom()
-}, { immediate: true })
-
-watch(() => props.isAgentRunning, (running, wasRunning) => {
-  if (wasRunning && !running) {
-    expandedSteps.value = new Set()
-  }
-})
-
-function toggleStep(id: string) {
-  const s = new Set(expandedSteps.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  expandedSteps.value = s
-}
-
-function isStepExpanded(id: string): boolean {
-  return expandedSteps.value.has(id)
-}
-
-function scrollToBottom() {
-  nextTick(() => {
-    if (feedContainer.value) {
-      feedContainer.value.scrollTop = feedContainer.value.scrollHeight
-    }
-  })
-}
-
-watch(() => props.messages, () => scrollToBottom(), { deep: true })
-
 function isToolPart(part: any): boolean {
   return typeof part.type === 'string' && part.type.startsWith('tool-')
 }
@@ -257,6 +151,116 @@ function cleanAssistantText(text: string | undefined, prompt: string | null): st
   
   return text
 }
+
+const feedContainer = ref<HTMLElement>()
+const expandedSteps = ref<Set<string>>(new Set())
+
+const stepGroups = computed<StepGroup[]>(() => {
+  const groups: StepGroup[] = []
+  const assistantMsgs = props.messages.filter(m => m.role === 'assistant')
+
+  for (const [msgIdx, msg] of assistantMsgs.entries()) {
+    const items: StepGroup['items'] = []
+    for (const [partIdx, part] of msg.parts.entries()) {
+      if (isToolPart(part) || (part.type === 'reasoning' && (part as any).text?.trim())) {
+        items.push({ ...part, _partIdx: partIdx })
+      }
+    }
+    if (items.length === 0) continue
+
+    const isLast = msgIdx === assistantMsgs.length - 1
+    groups.push({
+      msgId: msg.id,
+      title: deriveTitleFromItems(items),
+      items,
+      isCompleted: !isLast || !props.isAgentRunning,
+    })
+  }
+
+  return groups
+})
+
+const totalActions = computed(() =>
+  stepGroups.value.reduce((sum, g) => sum + g.items.length, 0),
+)
+
+function isBetaFeedbackMessage(msg: UIMessage): boolean {
+  return msg.role === 'user' && msg.parts.some(p => p.type === 'beta-feedback')
+}
+
+const currentPrompt = computed(() => {
+  const lastUser = [...props.messages].reverse().find(
+    m => m.role === 'user' && !isBetaFeedbackMessage(m),
+  )
+  if (!lastUser) return null
+  const textPart = lastUser.parts.find(p => p.type === 'text')
+  return (textPart as any)?.text ?? null
+})
+
+function deriveTitleFromItems(items: StepGroup['items']): string {
+  const reasoning = items.find(i => i.type === 'reasoning')
+  if (reasoning) {
+    const text = (reasoning as any).text as string
+    const sentence = (text.split(/[.!?\n]/)[0] || '').trim()
+    if (sentence.length > 3) return sentence.length > 80 ? sentence.slice(0, 77) + '...' : sentence
+  }
+
+  const tools = items.filter(i => isToolPart(i))
+  if (tools.length === 0) return 'Thinking'
+
+  const first = tools[0]
+  const name = toolName(first)
+  const detail = toolDetail(name, first)
+
+  if (name === 'navigate' || name === 'playwright_browser_navigate') {
+    try { return `Browsing ${new URL(detail).hostname}` } catch { return 'Navigating' }
+  }
+  if (name === 'websearch' || name === 'Exa_web_search_exa') return 'Searching the web'
+
+  const labels = [...new Set(tools.map(t => toolLabel(toolName(t))))]
+  return labels.slice(0, 3).join(', ')
+}
+
+// Auto-expand the latest step while running; expand ALL on completion
+watch(() => stepGroups.value.length, (len, prev) => {
+  if (len === 0) return
+  if (props.isAgentRunning && len > (prev ?? 0)) {
+    const latest = stepGroups.value[len - 1]
+    if (latest) expandedSteps.value = new Set([latest.msgId])
+  }
+  scrollToBottom()
+}, { immediate: true })
+
+watch(() => props.isAgentRunning, (running, wasRunning) => {
+  if (wasRunning && !running) {
+    expandedSteps.value = new Set()
+  }
+})
+
+function toggleStep(id: string) {
+  const s = new Set(expandedSteps.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  expandedSteps.value = s
+}
+
+function isStepExpanded(id: string): boolean {
+  return expandedSteps.value.has(id)
+}
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (feedContainer.value) {
+      feedContainer.value.scrollTop = feedContainer.value.scrollHeight
+    }
+  })
+}
+
+watch(() => props.messages, () => scrollToBottom(), { deep: true })
+
+
+
+
 
 function parseMarkdown(text: string): string {
   if (!text) return ''
@@ -378,7 +382,7 @@ const feedEmpty = computed(
     class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15"
   >
     <!-- Header -->
-    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0">
+    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/6 dark:border-white/6 shrink-0">
       <div class="relative">
         <UIcon name="i-lucide-sparkles" class="size-4" :class="isAgentRunning ? 'text-primary' : 'text-muted/50'" />
         <span v-if="isAgentRunning" class="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-primary animate-pulse" />
@@ -397,7 +401,7 @@ const feedEmpty = computed(
     </div>
 
     <!-- Current task -->
-    <div v-if="currentPrompt && isAgentRunning" class="px-4 py-2 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-primary/5">
+    <div v-if="currentPrompt && isAgentRunning" class="px-4 py-2 border-b border-black/6 dark:border-white/6 shrink-0 bg-primary/5">
       <p class="text-xs text-dimmed truncate">
         <span class="text-muted font-medium">Task:</span> {{ currentPrompt }}
       </p>
@@ -439,12 +443,12 @@ const feedEmpty = computed(
               <!-- Tool / reasoning step (same expandable UI as before) -->
               <div
                 v-if="seg.group"
-                class="rounded-xl overflow-hidden bg-black/[0.02] dark:bg-white/[0.03] ring-1 ring-black/[0.06] dark:ring-white/[0.06]"
+                class="rounded-xl overflow-hidden bg-black/2 dark:bg-white/3 ring-1 ring-black/6 dark:ring-white/6"
               >
                 <button
                   type="button"
                   class="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors text-left"
-                  :class="isStepExpanded(seg.group.msgId) ? 'bg-black/[0.02] dark:bg-white/[0.03]' : 'hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'"
+                  :class="isStepExpanded(seg.group.msgId) ? 'bg-black/2 dark:bg-white/3' : 'hover:bg-black/2 dark:hover:bg-white/2'"
                   @click="toggleStep(seg.group.msgId)"
                 >
                   <div class="shrink-0">
@@ -505,14 +509,14 @@ const feedEmpty = computed(
               <div
                 v-for="(part, pi) in textPartsForMessage(seg.message)"
                 :key="`${seg.message.id}-t-${pi}`"
-                class="rounded-2xl rounded-bl-md px-3.5 py-2.5 bg-black/[0.02] dark:bg-white/[0.04] ring-1 ring-black/[0.06] dark:ring-white/[0.08] text-sm leading-relaxed text-default shadow-sm markdown-body"
+                class="rounded-2xl rounded-bl-md px-3.5 py-2.5 bg-black/2 dark:bg-white/4 ring-1 ring-black/6 dark:ring-white/8 text-sm leading-relaxed text-default shadow-sm markdown-body"
                 v-html="parseMarkdown(cleanAssistantText((part as any).text, getPromptForAssistant(seg.message)))"
               />
 
               <!-- In-progress: no tools yet, no text -->
               <div
                 v-if="(isAgentRunning || status === 'submitted' || status === 'streaming') && isLastAssistantMessage(seg.message) && !seg.group && !hasVisibleAssistantText(seg.message)"
-                class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] text-dimmed text-sm"
+                class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3 text-dimmed text-sm"
               >
                 <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin shrink-0" />
                 <span>Thinking&hellip;</span>
@@ -535,7 +539,7 @@ const feedEmpty = computed(
       <Transition name="activity">
         <div
           v-if="showInitialThinking"
-          class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.03]"
+          class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3"
         >
           <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin" />
           <span class="text-sm text-dimmed">Thinking&hellip;</span>
@@ -545,10 +549,10 @@ const feedEmpty = computed(
       <!-- Idle empty -->
       <div
         v-if="feedEmpty"
-        class="flex flex-col items-center justify-center min-h-[180px] text-muted gap-3 py-8"
-      >
-        <UIcon name="i-lucide-messages-square" class="size-10 text-muted/25" />
-        <p class="text-xs text-dimmed text-center max-w-[220px]">
+         class="flex flex-col items-center justify-center min-h-45 text-muted gap-3 py-8"
+       >
+         <UIcon name="i-lucide-messages-square" class="size-10 text-muted/25" />
+         <p class="text-xs text-dimmed text-center max-w-55">
           <template v-if="props.isConnected === false">
             Connect the agent to run tasks. Conversation and steps will show here together.
           </template>

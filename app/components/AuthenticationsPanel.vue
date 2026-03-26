@@ -135,7 +135,7 @@ function cancelDelete() {
 <template>
   <div class="glass-jelly flex flex-col h-full w-full rounded-2xl overflow-hidden min-h-0 ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
-    <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b border-black/6 dark:border-white/6">
       <div class="min-w-0">
         <h1 class="text-lg font-semibold text-default tracking-tight">Authentications</h1>
         <p class="text-xs text-dimmed mt-0.5">
@@ -193,7 +193,7 @@ function cancelDelete() {
         <div
           v-for="i in 5"
           :key="i"
-          class="flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-default/20 text-center min-h-[112px] justify-center animate-pulse"
+          class="flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-default/20 text-center min-h-28 justify-center animate-pulse"
         >
           <div class="size-12 rounded-xl bg-default/30 shrink-0" />
           <div class="h-4 w-20 bg-default/30 rounded mt-1.5" />
@@ -224,7 +224,7 @@ function cancelDelete() {
           v-for="c in credentials"
           :key="c.id"
           type="button"
-          class="group flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] ring-1 ring-black/[0.06] dark:ring-white/[0.06] hover:ring-primary/25 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all text-center min-h-[112px] justify-center active:scale-[0.98]"
+          class="group flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-black/2 dark:bg-white/3 ring-1 ring-black/6 dark:ring-white/6 hover:ring-primary/25 hover:bg-black/4 dark:hover:bg-white/6 transition-all text-center min-h-28 justify-center active:scale-[0.98]"
           @click="openEdit(c)"
         >
           <div class="size-12 rounded-xl bg-elevated flex items-center justify-center overflow-hidden ring-1 ring-default/30 shrink-0">
@@ -248,7 +248,7 @@ function cancelDelete() {
 
         <button
           type="button"
-          class="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed border-default/40 hover:border-primary/50 hover:bg-primary/5 text-dimmed hover:text-muted transition-all min-h-[112px] active:scale-[0.98]"
+          class="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed border-default/40 hover:border-primary/50 hover:bg-primary/5 text-dimmed hover:text-muted transition-all min-h-28 active:scale-[0.98]"
           @click="openNew"
         >
           <UIcon name="i-lucide-plus" class="size-8" />
@@ -277,14 +277,14 @@ function cancelDelete() {
               {{ isEditing ? 'Update stored credentials for this site.' : 'Store URL, username, and password for jellybyte to reference.' }}
             </p>
           </div>
-          <button
-            type="button"
-            class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all shrink-0"
-            aria-label="Close"
-            @click="closeModal"
-          >
-            <UIcon name="i-lucide-x" class="size-[18px]" />
-          </button>
+           <button
+             type="button"
+             class="size-9 rounded-full bg-elevated flex items-center justify-center text-default hover:brightness-125 transition-all shrink-0"
+             aria-label="Close"
+             @click="closeModal"
+           >
+             <UIcon name="i-lucide-x" class="size-4.5" />
+           </button>
         </div>
 
         <div class="px-5 py-4 max-h-[min(70vh,520px)] overflow-y-auto">
