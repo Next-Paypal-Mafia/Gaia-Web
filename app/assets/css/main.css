@@ -10,45 +10,33 @@
 
 @layer base {
   :root {
-    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
-    --jelly-orb-1: rgba(232, 121, 249, 0.155);
-    --jelly-orb-2: rgba(244, 114, 182, 0.12);
-    --jelly-orb-3: rgba(124, 58, 237, 0.082);
-    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
-    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
-    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
-    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
-    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
-    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
-    /* Ambient orbs — fuchsia / pink weighted (still reads as “purple” brand) */
-    --jelly-orb-1: rgba(232, 121, 249, 0.155);
-    --jelly-orb-2: rgba(244, 114, 182, 0.12);
-    --jelly-orb-3: rgba(124, 58, 237, 0.082);
-    /* Animated wash — deep violet anchors → fuchsia → pink highlight */
-    --jelly-violet-ink: rgba(46, 16, 101, 0.068);
-    --jelly-violet-deep: rgba(76, 29, 149, 0.066);
-    --jelly-violet-mid: rgba(217, 70, 239, 0.056);
-    --jelly-magenta-lit: rgba(244, 114, 182, 0.052);
-    --jelly-violet-shadow: rgba(46, 16, 101, 0.098);
+    /* Ambient orbs — darker/neutral violet/purple weighted */
+    --jelly-orb-1: rgba(139, 92, 246, 0.082);   /* Violet 500 */
+    --jelly-orb-2: rgba(109, 40, 217, 0.065);   /* Violet 600 */
+    --jelly-orb-3: rgba(91, 33, 182, 0.048);    /* Violet 700 */
+    
+    /* Animated wash — deep violet anchors → mid violet highlight (no fuchsia) */
+    --jelly-violet-ink: rgba(46, 16, 101, 0.052);
+    --jelly-violet-deep: rgba(76, 29, 149, 0.048);
+    --jelly-violet-mid: rgba(109, 40, 217, 0.038);
+    --jelly-magenta-lit: rgba(139, 92, 246, 0.032); /* renamed from magenta, now violet highlight */
+    --jelly-violet-shadow: rgba(46, 16, 101, 0.076);
   }
 
   .dark {
-    --jelly-orb-1: rgba(232, 121, 249, 0.135);
-    --jelly-orb-2: rgba(251, 113, 133, 0.105);
-    --jelly-orb-3: rgba(167, 139, 250, 0.1);
-    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
-    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
-    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
-    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
-    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
-    --jelly-orb-1: rgba(232, 121, 249, 0.135);
-    --jelly-orb-2: rgba(251, 113, 133, 0.105);
-    --jelly-orb-3: rgba(167, 139, 250, 0.1);
-    --jelly-violet-ink: rgba(30, 27, 75, 0.2);
-    --jelly-violet-deep: rgba(91, 33, 182, 0.128);
-    --jelly-violet-mid: rgba(232, 121, 249, 0.095);
-    --jelly-magenta-lit: rgba(251, 113, 133, 0.088);
-    --jelly-violet-shadow: rgba(30, 27, 75, 0.27);
+    /* Enhanced text luminosity for accessibility/visibility */
+    --ui-text-default: #e2e8f0;   /* Slate 200 */
+    --ui-text-muted: #9dabbd !important;     /* Slate 400 */
+    --ui-text-dimmed: #717f94 !important;    /* Slate 500 */
+    
+    --jelly-orb-1: rgba(139, 92, 246, 0.095);
+    --jelly-orb-2: rgba(124, 58, 237, 0.075);
+    --jelly-orb-3: rgba(167, 139, 250, 0.08);
+    --jelly-violet-ink: rgba(30, 27, 75, 0.22);
+    --jelly-violet-deep: rgba(46, 16, 101, 0.142);
+    --jelly-violet-mid: rgba(124, 58, 237, 0.085);
+    --jelly-magenta-lit: rgba(139, 92, 246, 0.078);
+    --jelly-violet-shadow: rgba(15, 10, 40, 0.28);
   }
 }
 
@@ -58,26 +46,23 @@
     background: rgba(255, 255, 255, 0.52);
     backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
     -webkit-backdrop-filter: blur(32px) saturate(1.4) contrast(1.02);
-    border: 1px solid rgba(91, 33, 182, 0.11);
+    border: 1px solid rgba(91, 33, 182, 0.13);
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.035),
-      inset 0 0 36px rgba(76, 29, 149, 0.028),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      0 8px 28px -8px rgba(0, 0, 0, 0.1),
-      0 1px 2px rgba(0, 0, 0, 0.04);
+      0 0 0 1px rgba(46, 16, 101, 0.06),
+      inset 0 1px 1px rgba(255, 255, 255, 0.82),
+      inset 0 0 36px rgba(76, 29, 149, 0.02);
   }
 
   .dark .glass {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(124, 58, 237, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(139, 92, 246, 0.16);
     backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
     -webkit-backdrop-filter: blur(32px) saturate(1.45) contrast(1.03) brightness(1.03);
     box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.35),
-      inset 0 0 40px rgba(30, 27, 75, 0.14),
-      inset 0 1px 0 0 rgba(109, 40, 217, 0.09),
-      0 12px 40px -12px rgba(0, 0, 0, 0.45),
-      0 2px 6px rgba(0, 0, 0, 0.25);
+      0 0 0 1px rgba(15, 10, 40, 0.5),
+      inset 0 0 40px rgba(79, 70, 229, 0.08),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+      0 12px 40px -12px rgba(0, 0, 0, 0.35); /* reduced opacity */
   }
 
   /* ── Large “glass jelly” panes — translucent volume, specular edge, slow drift ─ */
@@ -162,41 +147,21 @@
     isolation: isolate;
     overflow: hidden;
     transform: translateZ(0);
-    backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    border: 1px solid rgba(91, 33, 182, 0.12);
-    background-color: rgba(255, 255, 255, 0.085);
-    background-image:
-      radial-gradient(
-        80% 55% at 50% -5%,
-        rgba(167, 139, 250, 0.045) 0%,
-        transparent 52%
-      ),
-      linear-gradient(
-        130deg,
-        var(--jelly-violet-ink) 0%,
-        var(--jelly-violet-deep) 26%,
-        var(--jelly-violet-mid) 44%,
-        var(--jelly-magenta-lit) 56%,
-        var(--jelly-violet-deep) 74%,
-        var(--jelly-violet-ink) 100%
-      );
-    background-size:
-      100% 100%,
-      260% 260%;
-    background-repeat: no-repeat;
-    animation:
-      jelly-gradient-drift 28s ease-in-out infinite,
-      jelly-panel-breathe 16s ease-in-out infinite;
+    backdrop-filter: blur(52px) saturate(1.5) contrast(1.02);
+    -webkit-backdrop-filter: blur(52px) saturate(1.5) contrast(1.02);
+    border: 1px solid rgba(139, 92, 246, 0.1);
+    background-color: rgba(255, 255, 255, 0.02); 
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.04),
-      inset 0 0 56px -12px rgba(46, 16, 101, 0.045),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
-      inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-      0 22px 56px -14px rgba(0, 0, 0, 0.14),
-      0 8px 32px -16px rgba(91, 33, 182, 0.085),
-      0 1px 2px rgba(0, 0, 0, 0.05);
+      0 0 0 1px rgba(139, 92, 246, 0.04),
+      inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .glass-jelly {
+    border-color: rgba(139, 92, 246, 0.15);
+    background-color: rgba(255, 255, 255, 0.015);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 0 rgba(139, 92, 246, 0.08);
   }
 
   /* Very subtle violet edge bleed — keeps content readable */
@@ -268,27 +233,10 @@
 
   .dark .glass-jelly {
     border-color: rgba(124, 58, 237, 0.15);
-    background-color: rgba(255, 255, 255, 0.032);
+    background-color: rgba(255, 255, 255, 0.015);
     backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
-    background-image:
-      radial-gradient(
-        85% 60% at 50% -8%,
-        rgba(109, 40, 217, 0.055) 0%,
-        transparent 50%
-      ),
-      linear-gradient(
-        132deg,
-        var(--jelly-violet-ink) 0%,
-        var(--jelly-violet-deep) 24%,
-        var(--jelly-violet-mid) 42%,
-        var(--jelly-magenta-lit) 60%,
-        var(--jelly-violet-deep) 76%,
-        var(--jelly-violet-ink) 100%
-      );
-    background-size:
-      100% 100%,
-      260% 260%;
+    /* Removed background-image */
   }
 
   .dark .glass-jelly::before {
@@ -317,50 +265,30 @@
     opacity: 0.48;
   }
 
-  /* Side nav: same translucent jelly language, slightly brighter left edge */
+  /* Side nav: more transparent to show root background */
   .jelly-block {
     position: relative;
     isolation: isolate;
     overflow: hidden;
     transform: translateZ(0);
-    backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    -webkit-backdrop-filter: blur(52px) saturate(1.55) contrast(1.04);
-    border: 1px solid rgba(91, 33, 182, 0.12);
-    background-color: rgba(255, 255, 255, 0.095);
-    background-image:
-      linear-gradient(
-        95deg,
-        rgba(91, 33, 182, 0.065) 0%,
-        rgba(76, 29, 149, 0.028) 18%,
-        transparent 40%
-      ),
-      linear-gradient(
-        125deg,
-        var(--jelly-violet-ink) 0%,
-        var(--jelly-violet-deep) 24%,
-        var(--jelly-violet-mid) 38%,
-        var(--jelly-magenta-lit) 54%,
-        var(--jelly-violet-deep) 72%,
-        var(--jelly-violet-ink) 100%
-      );
-    background-size:
-      100% 100%,
-      280% 280%;
-    background-repeat: no-repeat;
-    animation:
-      jelly-gradient-drift 32s ease-in-out infinite reverse,
-      jelly-slab-breathe 18s ease-in-out infinite,
-      jelly-slab-wobble 22s ease-in-out infinite;
+    backdrop-filter: blur(52px) saturate(1.52) contrast(1.04);
+    -webkit-backdrop-filter: blur(52px) saturate(1.52) contrast(1.04);
+    border: 1px solid rgba(139, 92, 246, 0.12);
+    background-color: rgba(255, 255, 255, 0.02);
+    /* outer shadows removed to fix "dirty" look */
     box-shadow:
-      0 0 0 1px rgba(46, 16, 101, 0.04),
-      inset 3px 0 28px -10px rgba(91, 33, 182, 0.08),
-      inset 0 0 52px -12px rgba(46, 16, 101, 0.04),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.055),
-      inset 0 -1px 0 0 rgba(30, 27, 75, 0.065),
-      inset 0 -24px 48px -28px var(--jelly-violet-shadow),
-      0 24px 60px -16px rgba(0, 0, 0, 0.16),
-      0 12px 40px -18px rgba(91, 33, 182, 0.095),
-      0 2px 6px rgba(0, 0, 0, 0.055);
+      0 0 0 1px rgba(139, 92, 246, 0.05),
+      inset 0 1px 1px rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 0 rgba(30, 27, 75, 0.02);
+  }
+
+  .dark .jelly-block {
+    border-color: rgba(139, 92, 246, 0.18);
+    background-color: rgba(255, 255, 255, 0.015);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 0 rgba(139, 92, 246, 0.08),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.2);
   }
 
   .jelly-block::before {
@@ -405,28 +333,10 @@
 
   .dark .jelly-block {
     border-color: rgba(124, 58, 237, 0.16);
-    background-color: rgba(255, 255, 255, 0.038);
+    background-color: rgba(255, 255, 255, 0.015);
     backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
     -webkit-backdrop-filter: blur(52px) saturate(1.58) contrast(1.05) brightness(1.04);
-    background-image:
-      linear-gradient(
-        95deg,
-        rgba(76, 29, 149, 0.09) 0%,
-        rgba(49, 46, 129, 0.04) 20%,
-        transparent 42%
-      ),
-      linear-gradient(
-        128deg,
-        var(--jelly-violet-ink) 0%,
-        var(--jelly-violet-deep) 24%,
-        var(--jelly-violet-mid) 40%,
-        var(--jelly-magenta-lit) 58%,
-        var(--jelly-violet-deep) 74%,
-        var(--jelly-violet-ink) 100%
-      );
-    background-size:
-      100% 100%,
-      280% 280%;
+    /* Removed background-image */
   }
 
   .dark .jelly-block::before {
@@ -475,16 +385,16 @@
   }
 
   .dark .jelly-block--over-bright {
-    background-color: rgba(14, 12, 22, 0.94);
-    border-color: rgba(124, 58, 237, 0.38);
+    background-color: rgba(12, 10, 18, 0.94);
+    border-color: rgba(139, 92, 246, 0.25);
     backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
     -webkit-backdrop-filter: blur(56px) saturate(1.18) contrast(1.04) brightness(0.97);
     background-image:
       linear-gradient(
         95deg,
-        rgba(10, 8, 18, 0.92) 0%,
-        rgba(14, 12, 22, 0.88) 38%,
-        rgba(14, 12, 22, 0.82) 100%
+        rgba(10, 8, 18, 0.94) 0%,
+        rgba(12, 10, 18, 0.92) 38%,
+        rgba(12, 10, 18, 0.88) 100%
       ),
       linear-gradient(
         128deg,
@@ -496,13 +406,12 @@
         var(--jelly-violet-ink) 100%
       );
     box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.5),
-      10px 0 40px -6px rgba(0, 0, 0, 0.65),
-      inset 0 0 72px rgba(0, 0, 0, 0.32),
-      inset 0 1px 0 0 rgba(124, 58, 237, 0.14),
-      inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
-      0 22px 56px -14px rgba(0, 0, 0, 0.45),
-      0 4px 16px rgba(0, 0, 0, 0.3);
+      0 0 0 1px rgba(255, 255, 255, 0.03),
+      10px 0 40px -10px rgba(0, 0, 0, 0.4),
+      inset 0 0 72px rgba(15, 10, 40, 0.3),
+      inset 0 1px 0 0 rgba(139, 92, 246, 0.08),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.2),
+      0 22px 56px -14px rgba(0, 0, 0, 0.3);
   }
 
   .dark .jelly-block--over-bright::before {
@@ -647,15 +556,28 @@
 
   .glass-jelly,
   .jelly-block {
-    background-size:
-      100% 100%,
-      100% 100% !important;
+    background-size: 100% 100% !important;
   }
+}
 
-  .glass-jelly,
-  .jelly-block {
-    background-size:
-      100% 100%,
-      100% 100% !important;
-  }
+/* ── Uniform root background ──────────────────────────────────────────── */
+.jelly-root {
+  background-color: #fafafa;
+  background-image:
+    radial-gradient(
+      85% 60% at 50% -8%,
+      rgba(139, 92, 246, 0.03) 0%,
+      transparent 50%
+    );
+  /* background animation removed to fix "dirty" look */
+}
+
+.dark .jelly-root {
+  background-color: #0c0c0e;
+  background-image:
+    radial-gradient(
+      100% 70% at 50% -10%,
+      rgba(139, 92, 246, 0.05) 0%,
+      transparent 60%
+    );
 }

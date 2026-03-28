@@ -3,7 +3,28 @@ export default defineNuxtConfig({
   ssr: false,
   devtools: { enabled: true },
 
-  modules: ["@nuxt/ui", "@nuxtjs/supabase"],
+  modules: ["@nuxt/ui", "@nuxtjs/supabase", "@nuxtjs/i18n"],
+
+  i18n: {
+    /** v10 defaults to ./i18n; this app keeps messages under app/locales */
+    restructureDir: "app",
+    locales: [
+      { code: "en", language: "en", name: "English", file: "en.json" },
+      { code: "es", language: "es", name: "Español", file: "es.json" },
+      { code: "zh", language: "zh-CN", name: "中文", file: "zh.json" },
+      { code: "ja", language: "ja", name: "日本語", file: "ja.json" },
+      { code: "fr", language: "fr", name: "Français", file: "fr.json" },
+    ],
+    defaultLocale: "en",
+    strategy: "no_prefix",
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: "i18n_redirected",
+      alwaysRedirect: true,
+      fallbackLocale: "en",
+    },
+    langDir: "locales/",
+  },
 
   runtimeConfig: {
     public: {

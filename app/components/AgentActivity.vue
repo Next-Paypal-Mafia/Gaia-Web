@@ -19,6 +19,7 @@ const props = defineProps<{
   isAgentRunning: boolean
   /** Agent session connected — for subtle empty hints */
   isConnected?: boolean
+  viewportHidden?: boolean
 }>()
 
 const taskFeedbackOpen = defineModel<boolean>('taskFeedbackOpen', { default: false })
@@ -26,6 +27,7 @@ const taskFeedbackOpen = defineModel<boolean>('taskFeedbackOpen', { default: fal
 const emit = defineEmits<{
   taskFeedbackVote: [sentiment: 'positive' | 'negative']
   taskFeedbackBannerEntered: []
+  toggleViewport: []
 }>()
 
 function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
@@ -389,7 +391,7 @@ const feedEmpty = computed(
         </span>
         <span class="text-[10px] text-dimmed truncate">Thinking &amp; chat in one thread</span>
       </div>
-      <span v-if="stepGroups.length" class="text-[10px] text-dimmed ml-auto shrink-0 text-right leading-tight">
+        <span v-if="stepGroups.length" class="text-[10px] text-dimmed ml-auto shrink-0 text-right leading-tight">
         {{ stepGroups.length }} {{ stepGroups.length === 1 ? 'step' : 'steps' }}
         <span class="text-dimmed/70"> · </span>
         {{ totalActions }} {{ totalActions === 1 ? 'action' : 'actions' }}
@@ -405,7 +407,7 @@ const feedEmpty = computed(
 
     <!-- Merged glass feed: user messages, assistant tools/thinking, assistant replies (single scroll) -->
     <div ref="feedContainer" class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4 unified-feed-scroll">
-      <TransitionGroup name="unified" tag="div" class="space-y-4">
+      <TransitionGroup name="unified" tag="div" class="space-y-4 max-w-[850px] mx-auto w-full px-4 sm:px-6">
         <div v-for="seg in unifiedSegments" :key="seg.key">
           <!-- User prompt -->
           <div v-if="seg.kind === 'user'" class="flex justify-end">
@@ -566,6 +568,22 @@ const feedEmpty = computed(
         />
       </div>
     </div>
+
+    <!-- Dock Arrow Toggle -->
+    <div class="absolute left-0 top-1/2 -translate-y-1/2 z-[60]">
+      <UButton
+        variant="ghost"
+        color="neutral"
+        class="dock-toggle-btn glass flex items-center justify-center rounded-[4px] w-6.5 h-12 p-0"
+        :title="viewportHidden ? 'Show browser viewport' : 'Hide browser viewport'"
+        @click="emit('toggleViewport')"
+      >
+        <UIcon 
+          :name="viewportHidden ? 'i-lucide-chevron-right' : 'i-lucide-chevron-left'" 
+          class="size-3.5 text-primary"
+        />
+      </UButton>
+    </div>
   </div>
 </template>
 
@@ -589,6 +607,36 @@ const feedEmpty = computed(
 
 .unified-feed-scroll {
   scrollbar-width: thin;
+}
+
+.dock-toggle-btn {
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.25s cubic-bezier(0.18, 1, 0.28, 1) !important;
+  opacity: 0.6;
+}
+
+:global(.dark) .dock-toggle-btn {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dock-toggle-btn:hover {
+  opacity: 1;
+  transform: scale(1.05) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  width: 1.25rem !important;
+}
+
+:global(.dark) .dock-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dock-toggle-btn:active {
+  transform: scale(0.95) !important;
 }
 
 .step-enter-active {

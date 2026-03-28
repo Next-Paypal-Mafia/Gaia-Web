@@ -11,7 +11,10 @@ interface AssistantBuffer {
   parts: Array<Record<string, any>>;
 }
 
+import { useUsage } from '~/composables/useUsage';
+
 export function useOpenCodeAgent() {
+  const usage = useUsage();
   const messages = shallowRef<UIMessage[]>([]);
   const isAgentRunning = ref(false);
   const status = ref<"ready" | "submitted" | "streaming" | "error">("ready");
@@ -299,6 +302,26 @@ export function useOpenCodeAgent() {
     };
     messages.value = [...messages.value, userMsg];
 
+    if (!usage.canRequest.value) {
+      console.error("[useOpenCodeAgent] Usage limit reached");
+      messages.value = [
+        ...messages.value,
+        {
+          id: `assistant-limit-${Date.now()}`,
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: `Usage limit reached. ${usage.limit.value === 1 ? 'Anonymous users' : 'Authenticated users'} are limited to ${usage.limit.value} ${usage.limit.value === 1 ? 'request' : 'requests'}. Please ${usage.limit.value === 1 ? 'sign in' : 'upgrade your plan'} to continue.`,
+            },
+          ],
+        },
+      ];
+      isAgentRunning.value = false;
+      status.value = "error";
+      return;
+    }
+
     if (!sessionId.value) {
       console.error(
         "[useOpenCodeAgent] No active session — call connect() first",
@@ -334,6 +357,9 @@ export function useOpenCodeAgent() {
     }
 
     try {
+      // Increment usage count on theoretical success of starting the agent
+      usage.incrementUsage();
+
       const res = await fetch(
         `${_baseUrl}/sessions/${sessionId.value}/message/async`,
         {

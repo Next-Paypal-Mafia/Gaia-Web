@@ -80,7 +80,7 @@ watch(open, (val) => {
     }"
   >
     <template #body>
-      <div class="flex flex-col max-h-[80vh] overflow-hidden bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-2xl">
+      <div class="flex flex-col h-[520px] max-h-[80vh] overflow-hidden bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-2xl rounded-2xl">
         <!-- Header: search input + close -->
         <div class="flex items-center gap-2 px-4 pt-4 pb-3 shrink-0">
           <UInput
@@ -105,14 +105,15 @@ watch(open, (val) => {
         </div>
 
         <!-- Results list -->
-        <div class="flex flex-col overflow-y-auto px-2 pb-4">
-          <template v-if="filteredChats.length > 0">
-            <span class="px-2 pb-1.5 text-xs text-dimmed font-medium">Chats</span>
-            <div class="flex flex-col gap-0.5 mb-3">
+        <div class="flex-1 min-h-0 flex flex-col px-2 pb-4 overflow-hidden">
+          <!-- Chats Section (Scrollable) -->
+          <div v-if="filteredChats.length > 0" class="flex-1 min-h-0 flex flex-col overflow-hidden mb-3">
+            <span class="px-2 pb-1.5 text-xs text-dimmed font-medium shrink-0">Chats</span>
+            <div class="flex-1 overflow-y-auto flex flex-col gap-0.5 pr-1">
               <button
                 v-for="chat in filteredChats"
                 :key="chat.id"
-                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full shrink-0"
                 :class="chat.id === activeChatId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default'"
                 @click="selectChatAndClose(chat.id)"
               >
@@ -120,11 +121,12 @@ watch(open, (val) => {
                 <span class="truncate">{{ chat.title }}</span>
               </button>
             </div>
-          </template>
+          </div>
 
-          <template v-if="filteredWorkflows.length > 0">
+          <!-- Workflows Section (Fixed below chats) -->
+          <div v-if="filteredWorkflows.length > 0" class="shrink-0 flex flex-col border-t border-black/[0.04] dark:border-white/[0.04] pt-3">
             <span class="px-2 pb-1.5 text-xs text-dimmed font-medium">Workflows</span>
-            <div class="flex flex-col gap-0.5">
+            <div class="flex flex-col gap-0.5 max-h-[140px] overflow-y-auto">
               <button
                 v-for="workflow in filteredWorkflows"
                 :key="workflow.id"
@@ -135,7 +137,7 @@ watch(open, (val) => {
                 <span class="truncate">{{ workflow.title }}</span>
               </button>
             </div>
-          </template>
+          </div>
 
           <p
             v-if="!hasResults"

@@ -18,11 +18,18 @@ const streamingChatId = ref(boot.streamingChatId)
 const chatHistory = ref(boot.chatHistory)
 const chatSessions = ref<Record<string, UIMessage[]>>(boot.chatSessions)
 const browserRevealed = ref(boot.browserRevealed)
+const viewportHidden = ref(false)
 const dismissedTaskFeedbackAssistantIds = ref(new Set(boot.dismissedFeedbackIds))
 
 const screencast = useScreencast()
 const agent = useOpenCodeAgent()
 const apiVersion = useApiVersion()
+const usage = useUsage()
+const settings = useSettings()
+const { t } = useI18n()
+
+const limitReachedOpen = ref(false)
+
 /** Hydrate agent memory from the restored tab so Activity matches chatSessions (fixes empty panel on reload). */
 agent.resetChat(cloneUIMessages(chatSessions.value[streamingChatId.value] ?? []))
 
@@ -261,11 +268,18 @@ function setActiveChatTitleFromText(text: string) {
 
 function onLandingSend(text?: string) {
   if (agent.isAgentRunning.value || surveyLocksChat.value) return
+
+  if (!usage.canRequest.value) {
+    limitReachedOpen.value = true
+    return
+  }
+
   const msg = (text ?? landingInput.value).trim()
   if (!msg) return
   clearTaskFeedbackTimer()
   landingInput.value = ''
   browserRevealed.value = true
+  viewportHidden.value = true
   setActiveChatTitleFromText(msg)
   bindAgentToActiveChat()
   nextTick(() => {
@@ -273,18 +287,29 @@ function onLandingSend(text?: string) {
   })
 }
 
+// Auto-show viewport when browser tools are seen
+watch(() => agent.messages.value, (msgs) => {
+  const hasBrowserTool = msgs.some(m => 
+    m.role === 'assistant' && 
+    m.parts.some(p => 
+      typeof p.type === 'string' && 
+      p.type.startsWith('tool-') && 
+      !p.type.includes('websearch') && 
+      !p.type.includes('Exa')
+    )
+  )
+  if (hasBrowserTool) {
+    viewportHidden.value = false
+  } else if (msgs.length > 0) {
+    // If we have messages but none use browser tools, keep it hidden by default
+    // viewportHidden.value = true // Optional: do we want to hide it if we switch to a chat without tools?
+  }
+}, { deep: true })
+
 watch(() => agent.messages.value.length, (len) => {
   if (len === 0 && isViewingStreamingChat.value) browserRevealed.value = false
 })
 
-// Auto-collapse sidebar when entering browser view
-const hoverSidebarActive = computed(() => isBrowserView.value && !showLanding.value)
-
-watch(hoverSidebarActive, (newVal) => {
-  if (newVal) {
-    sidebarExpanded.value = false
-  }
-})
 
 // Persist agent stream into the chat that owns it.
 watch(
@@ -368,6 +393,8 @@ function onNewChat() {
     return
   }
 
+
+
   chatSessions.value[streamingChatId.value] = agent.getMessages()
   const snapIdx = chatHistory.value.findIndex(c => c.id === streamingChatId.value)
   const snapItem = chatHistory.value[snapIdx]
@@ -383,6 +410,7 @@ function onNewChat() {
     activeView.value = null
     activeWorkflowId.value = null
     browserRevealed.value = false
+    viewportHidden.value = true
     streamingChatId.value = unusedChat.id
     agent.resetChat()
     schedulePersistChats()
@@ -396,6 +424,7 @@ function onNewChat() {
   activeView.value = null
   activeWorkflowId.value = null
   browserRevealed.value = false
+  viewportHidden.value = true
   streamingChatId.value = newId
   agent.resetChat()
   schedulePersistChats()
@@ -420,6 +449,7 @@ function onSelectChat(id: string) {
 
   const stored = chatSessions.value[id] ?? []
   browserRevealed.value = stored.length > 0
+  viewportHidden.value = true // Watcher will flip this to false if browser tools found
 
   // Rebind the agent only when idle
   if (!agent.isAgentRunning.value) {
@@ -519,6 +549,12 @@ function onDeleteChat(id: string) {
 
 function onSendInstruction(text: string) {
   if (agent.isAgentRunning.value || surveyLocksChat.value) return
+
+  if (!usage.canRequest.value) {
+    limitReachedOpen.value = true
+    return
+  }
+
   clearTaskFeedbackTimer()
   // If sending from a chat that isn't the streaming one, rebind first
   bindAgentToActiveChat()
@@ -531,7 +567,7 @@ function onSendInstruction(text: string) {
 </script>
 
 <template>
-<div class="h-screen flex bg-default overflow-hidden relative">
+<div class="h-screen flex bg-default overflow-hidden relative jelly-root">
   <!-- Jellyfish ambient glow orbs -->
   <div class="jelly-orbs">
     <div class="jelly-orb jelly-orb--1" />
@@ -539,7 +575,7 @@ function onSendInstruction(text: string) {
     <div class="jelly-orb jelly-orb--3" />
   </div>
   <!-- Left side panel -->
-  <SidePanel :expanded="sidebarExpanded" :is-browser-view="hoverSidebarActive" :chat-history="chatsWithMessages"
+  <SidePanel :expanded="sidebarExpanded" :chat-history="chatsWithMessages"
     :active-chat-id="activeChatId" :active-view="activeView" :active-workflow-id="activeWorkflowId"
     :pinned-workflows="wf.pinnedWorkflows.value" @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true"
     @new-chat="onNewChat" @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
@@ -555,8 +591,8 @@ function onSendInstruction(text: string) {
           <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
             <UIcon name="i-lucide-earth" class="size-8 text-primary" />
           </div>
-          <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">Welcome to jellybyte</h1>
-          <p class="text-sm text-muted mb-8">Describe a task and I'll browse the web for you.</p>
+          <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">{{ t('welcome') }}</h1>
+          <p class="text-sm text-muted mb-8">{{ t('welcome_desc') }}</p>
 
           <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
             <div class="relative group">
@@ -595,9 +631,10 @@ function onSendInstruction(text: string) {
         <Transition name="browser-reveal">
           <div v-show="isBrowserView" class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10">
             <div class="flex-1 min-h-0 relative overflow-hidden">
-              <div class="absolute inset-0 browser-grid" :class="[
+            <div class="absolute inset-0 browser-grid" :class="[
                 sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
                 tilingAnimActive ? 'browser-grid--tiling' : '',
+                viewportHidden ? 'browser-grid--viewport-hidden' : '',
               ]">
                 <!-- Viewport tile -->
                 <div class="browser-grid__viewport min-h-0">
@@ -635,8 +672,10 @@ function onSendInstruction(text: string) {
                 <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
                   <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
                     :status="currentStatus" :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                    :viewport-hidden="viewportHidden"
                     @task-feedback-vote="onTaskFeedbackVote"
-                    @task-feedback-banner-entered="taskFeedbackBannerEntered = true" />
+                    @task-feedback-banner-entered="taskFeedbackBannerEntered = true"
+                    @toggle-viewport="viewportHidden = !viewportHidden" />
                 </div>
               </div>
             </div>
@@ -682,6 +721,60 @@ function onSendInstruction(text: string) {
     </template>
   </div>
   <BugReportButton />
+  <LanguageSwitchPrompt />
+
+  <UModal
+    v-model:open="limitReachedOpen"
+    :ui="{
+      content: 'max-w-md',
+      body: 'p-0 sm:p-0',
+      header: 'hidden',
+      footer: 'hidden',
+    }"
+  >
+    <template #body>
+      <div class="p-8 text-center glass-jelly border-0 rounded-3xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+        
+        <div class="relative z-10 space-y-5">
+          <div class="mx-auto size-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-[0_0_20px_rgba(var(--ui-color-primary-500),0.1)]">
+            <UIcon name="i-lucide-zap" class="size-8 text-primary" />
+          </div>
+
+          <div>
+            <h3 class="text-xl font-bold text-default tracking-tight">{{ t('limit_reached_title', 'Limit reached') }}</h3>
+            <p class="text-sm text-dimmed mt-2 leading-relaxed">
+              {{ settings.isLoggedIn.value 
+                ? t('limit_reached_pro', 'You have used all available requests for your current plan. Upgrade to a premium tier to continue browsing without limits.') 
+                : t('limit_reached_anon', 'Anonymous users are limited to 1 request. Sign in or create an account to get more requests and save your chat history.') 
+              }}
+            </p>
+          </div>
+
+          <div class="pt-2 flex flex-col gap-3">
+            <UButton
+              block
+              size="lg"
+              color="primary"
+              class="font-semibold shadow-lg shadow-primary/20"
+              @click="onSelectView('profile'); limitReachedOpen = false"
+            >
+              {{ settings.isLoggedIn.value ? 'Upgrade Plan' : 'Sign in / Sign up' }}
+            </UButton>
+            <UButton
+              block
+              size="lg"
+              variant="ghost"
+              color="neutral"
+              @click="limitReachedOpen = false"
+            >
+              Maybe later
+            </UButton>
+          </div>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </div>
 </template>
 
@@ -689,20 +782,22 @@ function onSendInstruction(text: string) {
 /* ── Landing glass input ──────────────────────────────────────────────── */
 .landing-glass-input :deep(textarea) {
   background: rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(139, 92, 246, 0.15) !important;
   border-radius: 1rem !important;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  /* Glow by default */
+  box-shadow: 0 0 32px 6px rgba(138, 92, 246, 0.267) !important;
 }
 
 :global(.dark) .landing-glass-input :deep(textarea) {
   background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+  box-shadow: 0 0 40px -12px rgba(139, 92, 246, 0.2) !important;
 }
 
 .landing-glass-input :deep(textarea:focus) {
   border-color: var(--ui-color-primary-500) !important;
-  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
-  box-shadow: 0 0 20px -8px rgba(217, 70, 239, 0.22) !important;
+  box-shadow: 0 0 24px -6px rgba(139, 92, 246, 0.3) !important;
 }
 
 /* ── Shared: GPU-friendly, reduce paint ───────────────────────────────── */
@@ -853,6 +948,20 @@ function onSendInstruction(text: string) {
 .browser-grid--rail .browser-grid__activity {
   grid-row: 1;
   grid-column: 2;
+}
+
+/* Hidden viewport state: Center the chat with a max width of 800px */
+.browser-grid--viewport-hidden {
+  grid-template-columns: 0px 1fr !important;
+  gap: 0 !important;
+}
+
+.browser-grid--viewport-hidden .browser-grid__viewport {
+  display: none;
+}
+
+.browser-grid--viewport-hidden .browser-grid__activity {
+  grid-column: 2 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

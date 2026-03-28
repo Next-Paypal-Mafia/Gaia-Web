@@ -10,7 +10,6 @@ interface ChatHistoryItem {
 const props = defineProps<{
   /** Full width sidebar with labels; false = icon rail only */
   expanded: boolean
-  isBrowserView?: boolean
   chatHistory: ChatHistoryItem[]
   activeChatId: string
   activeView: 'dashboard' | 'vault' | 'authentications' | 'profile' | null
@@ -191,35 +190,10 @@ function getPinnedMenuItems(wf: WorkflowItem): DropdownMenuItem[] {
 const workflowsSectionRef = ref<HTMLElement | null>(null)
 const sidePanelAsideRef = ref<HTMLElement | null>(null)
 
-/** Portaled dropdowns sit outside the aside; mouseleave would collapse the hover rail and break anchoring. */
-const sidebarMenusOpenCount = ref(0)
+import { useUsage } from '~/composables/useUsage'
 
-function trackSidebarDropdownOpen(open: boolean) {
-  sidebarMenusOpenCount.value += open ? 1 : -1
-  if (sidebarMenusOpenCount.value < 0)
-    sidebarMenusOpenCount.value = 0
-}
-
-function onAsidePointerLeave() {
-  if (!props.isBrowserView)
-    return
-  if (sidebarMenusOpenCount.value > 0)
-    return
-  emit('toggle')
-}
-
-watch(sidebarMenusOpenCount, (count, prev) => {
-  if (!props.isBrowserView || prev === undefined)
-    return
-  if (prev <= 0 || count > 0)
-    return
-  nextTick(() => {
-    const el = sidePanelAsideRef.value
-    if (el && !el.matches(':hover'))
-      emit('toggle')
-  })
-})
-
+const { t } = useI18n()
+const usage = useUsage()
 // ── Profile ───────────────────────────────────────────────────────────────────
 const initials = computed(() => {
   const name = settings.username.value.trim() || 'U'
@@ -258,36 +232,30 @@ watch(
 <template>
   <div
     class="relative shrink-0 transition-[width] duration-300 ease-out"
-    :style="{ width: expanded && !isBrowserView ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
+    :style="{ width: expanded ? 'calc(280px + 0.5rem)' : 'calc(4.25rem + 0.5rem)' }"
   >
     <aside
       ref="sidePanelAsideRef"
       class="sidebar-aside jelly-block flex flex-col rounded-2xl overflow-hidden absolute top-0 bottom-0 left-0 z-50"
-      :class="[
-        expanded ? 'sidebar-expanded' : 'sidebar-rail',
-        isBrowserView ? 'jelly-block--over-bright' : '',
-        expanded && isBrowserView ? 'ring-1 ring-fuchsia-500/15 dark:ring-pink-400/20' : '',
-      ]"
-      @mouseenter="isBrowserView && emit('expand')"
-      @mouseleave="onAsidePointerLeave"
+      :class="expanded ? 'sidebar-expanded' : 'sidebar-rail'"
     >
     <!-- Icon rail (default) -->
     <div
       v-show="!expanded"
       class="flex flex-col h-full w-full items-center py-2 gap-0.5"
     >
-      <UTooltip :text="!isBrowserView ? 'Expand sidebar' : 'jellybyte'">
+      <UTooltip :text="t('expand_sidebar', 'Expand sidebar')">
         <button
           type="button"
           class="group/logo flex items-center justify-center size-10 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-default transition-colors mb-2"
-          @click="!isBrowserView && emit('expand')"
+          @click="emit('expand')"
         >
-          <UIcon name="i-lucide-earth" class="size-5 text-primary transition-opacity" :class="!isBrowserView ? 'block group-hover/logo:hidden' : ''" />
-          <UIcon v-if="!isBrowserView" name="i-lucide-panel-left-open" class="size-5 text-primary hidden group-hover/logo:block transition-opacity" />
+          <UIcon name="i-lucide-earth" class="size-5 text-primary transition-opacity block group-hover/logo:hidden" />
+          <UIcon name="i-lucide-panel-left-open" class="size-5 text-primary hidden group-hover/logo:block transition-opacity" />
         </button>
       </UTooltip>
 
-      <UTooltip text="Dashboard">
+      <UTooltip :text="t('dashboard')">
         <button
           type="button"
           class="sidebar-rail-btn"
@@ -298,7 +266,7 @@ watch(
         </button>
       </UTooltip>
 
-      <UTooltip text="New chat">
+      <UTooltip :text="t('new_chat')">
         <button
           type="button"
           class="sidebar-rail-btn"
@@ -309,7 +277,7 @@ watch(
         </button>
       </UTooltip>
 
-      <UTooltip text="Search">
+      <UTooltip :text="t('search')">
         <button
           type="button"
           class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
@@ -319,7 +287,7 @@ watch(
         </button>
       </UTooltip>
 
-      <UTooltip text="Vault">
+      <UTooltip :text="t('vault')">
         <button
           type="button"
           class="sidebar-rail-btn"
@@ -330,7 +298,7 @@ watch(
         </button>
       </UTooltip>
 
-      <UTooltip text="Authentications">
+      <UTooltip :text="t('authentications')">
         <button
           type="button"
           class="sidebar-rail-btn"
@@ -345,11 +313,10 @@ watch(
         :items="railChatMenuItems"
         :content="{ align: 'start', side: 'right', positionStrategy: 'fixed' }"
         :disabled="!chatHistory.length"
-        @update:open="trackSidebarDropdownOpen"
       >
         <button
           type="button"
-          title="Chats"
+          :title="t('chats')"
           class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] disabled:opacity-40"
           :disabled="!chatHistory.length"
         >
@@ -361,11 +328,10 @@ watch(
         :items="railWorkflowMenuItems"
         :content="{ align: 'start', side: 'right', positionStrategy: 'fixed' }"
         :disabled="!pinnedWorkflows.length"
-        @update:open="trackSidebarDropdownOpen"
       >
         <button
           type="button"
-          title="Workflows"
+          :title="t('workflows')"
           class="sidebar-rail-btn text-muted hover:bg-white/[0.06] disabled:opacity-40"
           :disabled="!pinnedWorkflows.length"
         >
@@ -374,6 +340,18 @@ watch(
       </UDropdownMenu>
 
       <div class="flex-1 min-h-2" />
+
+      <!-- Usage Indicator (Rail) -->
+      <UTooltip :text="`Usage: ${usage.requestCount.value}/${usage.limit.value} requests`" side="right">
+        <div class="mb-2 px-2">
+          <div class="h-12 w-1.5 flex flex-col-reverse bg-black/10 dark:bg-white/10 rounded-full overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+            <div 
+              class="bg-primary shadow-[0_0_10px_rgba(168,85,247,0.4)] transition-all duration-500 ease-out" 
+              :style="{ height: usage.usagePercentage.value + '%' }" 
+            />
+          </div>
+        </div>
+      </UTooltip>
 
       <UTooltip v-if="!settings.isLoggedIn.value" text="Log in">
         <button
@@ -421,7 +399,6 @@ watch(
           <span class="text-[9px] font-bold tracking-wider uppercase px-1.5 py-px rounded-full bg-primary/10 text-primary leading-tight">Beta</span>
         </div>
         <UButton
-          v-if="!isBrowserView"
           icon="i-lucide-panel-left-close"
           variant="ghost"
           size="xs"
@@ -443,7 +420,7 @@ watch(
             class="size-4 shrink-0 transition-colors"
             :class="isNavActive('dashboard') ? 'text-primary' : 'text-muted'"
           />
-          <span>Dashboard</span>
+          <span>{{ t('dashboard') }}</span>
         </button>
 
         <!-- New Chat -->
@@ -457,7 +434,7 @@ watch(
             class="size-4 shrink-0 transition-colors"
             :class="isNewChatActive ? 'text-primary' : 'text-muted'"
           />
-          <span>New Chat</span>
+          <span>{{ t('new_chat') }}</span>
         </button>
 
         <!-- Search (overlay only — doesn't change active page) -->
@@ -469,7 +446,7 @@ watch(
             name="i-lucide-search"
             class="size-4 shrink-0 text-muted"
           />
-          <span>Search</span>
+          <span>{{ t('search') }}</span>
         </button>
 
         <!-- Vault -->
@@ -483,7 +460,7 @@ watch(
             class="size-4 shrink-0 transition-colors"
             :class="isNavActive('vault') ? 'text-primary' : 'text-muted'"
           />
-          <span class="flex-1">Vault</span>
+          <span class="flex-1">{{ t('vault') }}</span>
           <span class="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-primary/10 text-primary leading-none">Beta</span>
         </button>
 
@@ -498,15 +475,15 @@ watch(
             class="size-4 shrink-0 transition-colors"
             :class="isNavActive('authentications') ? 'text-primary' : 'text-muted'"
           />
-          <span class="flex-1">Authentications</span>
+          <span class="flex-1">{{ t('authentications') }}</span>
           <span class="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-primary/10 text-primary leading-none">Beta</span>
         </button>
       </div>
 
       <!-- Chat history -->
-      <div class="flex flex-col overflow-hidden mt-4">
+      <div class="flex-1 flex flex-col overflow-hidden mt-4 min-h-0">
         <span class="px-4 pb-1.5 text-xs text-dimmed font-medium">Chats</span>
-        <div class="flex flex-col gap-0.5 overflow-y-auto px-2">
+        <div class="flex-1 flex flex-col gap-0.5 overflow-y-auto px-2">
           <div
             v-for="chat in chatHistory"
             :key="chat.id"
@@ -531,7 +508,6 @@ watch(
             <UDropdownMenu
               :items="getChatMenuItems(chat)"
               :content="{ align: 'start', side: 'bottom', positionStrategy: 'fixed' }"
-              @update:open="trackSidebarDropdownOpen"
             >
               <UButton
                 icon="i-lucide-ellipsis"
@@ -547,13 +523,13 @@ watch(
       </div>
 
       <!-- Pinned workflows only -->
-      <div ref="workflowsSectionRef" class="flex flex-col overflow-hidden mt-4">
+      <div ref="workflowsSectionRef" class="shrink-0 flex flex-col mt-4 min-h-0">
         <div class="flex items-center gap-2 px-4 pb-1.5">
-          <span class="text-xs text-dimmed font-medium">Workflows</span>
+          <span class="text-xs text-dimmed font-medium">{{ t('workflows') }}</span>
           <span class="text-[9px] font-semibold tracking-wide uppercase px-1.5 py-px rounded-full bg-primary/10 text-primary leading-tight">Beta</span>
         </div>
 
-        <div v-if="pinnedWorkflows.length" class="flex flex-col gap-0.5 overflow-y-auto px-2">
+        <div v-if="pinnedWorkflows.length" class="flex flex-col gap-0.5 px-2 overflow-hidden">
           <div
             v-for="wf in pinnedWorkflows"
             :key="`pinned-${wf.id}`"
@@ -589,7 +565,6 @@ watch(
               <UDropdownMenu
                 :items="getPinnedMenuItems(wf)"
                 :content="{ align: 'start', side: 'bottom', positionStrategy: 'fixed' }"
-                @update:open="trackSidebarDropdownOpen"
               >
                 <UButton
                   icon="i-lucide-ellipsis"
@@ -605,12 +580,28 @@ watch(
         </div>
 
         <div v-else class="px-4 py-3 text-xs text-dimmed">
-          Pin workflows from the Dashboard to see them here.
+          {{ t('pin_workflows_hint') }}
         </div>
       </div>
 
-      <!-- Spacer so footer sticks to bottom -->
-      <div class="flex-1" />
+
+
+      <!-- Usage Widget (Expanded) -->
+      <div class="px-4 py-3 mb-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] font-bold text-dimmed uppercase tracking-wider">{{ t('usage') }}</span>
+          <span class="text-[10px] font-bold text-primary">{{ usage.requestCount.value }} / {{ usage.limit.value }}</span>
+        </div>
+        <div class="h-1.5 w-full bg-black/10 dark:bg-white/10 rounded-full overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+          <div 
+            class="h-full bg-primary shadow-[0_0_10px_rgba(168,85,247,0.4)] transition-all duration-500 ease-out" 
+            :style="{ width: usage.usagePercentage.value + '%' }" 
+          />
+        </div>
+        <p v-if="!usage.canRequest.value" class="text-[10px] text-error mt-1.5 font-medium leading-tight">
+          {{ t('limit_reached') }} {{ settings.isLoggedIn.value ? t('upgrade', 'Upgrade') : t('sign_in', 'Sign in') }} {{ t('to_continue', 'to continue.') }}
+        </p>
+      </div>
 
       <!-- Footer: Login/Signup or Profile -->
       <div class="shrink-0 px-2 py-2 border-t border-black/[0.06] dark:border-white/[0.06]">
@@ -621,7 +612,7 @@ watch(
           @click="settingsOpen = true"
         >
           <UIcon name="i-lucide-log-in" class="size-4 shrink-0" />
-          <span>Log in / Sign up</span>
+          <span>{{ t('login_signup', 'Log in / Sign up') }}</span>
         </button>
 
         <!-- Logged in: Profile link -->
@@ -675,10 +666,10 @@ watch(
             <UIcon name="i-lucide-trash-2" class="size-6 text-error" />
           </div>
           <div>
-            <p class="text-base font-semibold text-default">Delete workflow?</p>
+            <p class="text-base font-semibold text-default">{{ t('delete_workflow_title') }}</p>
             <p class="text-sm text-dimmed mt-1">
               <span class="font-medium text-default">"{{ deletingWorkflow?.title }}"</span>
-              will be permanently deleted. This can't be undone.
+              {{ t('delete_workflow_desc') }}
             </p>
           </div>
           <div class="flex items-center justify-center gap-3">
