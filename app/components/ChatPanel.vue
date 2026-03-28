@@ -112,7 +112,7 @@ const showWorkingIndicator = computed(() => {
 <template>
   <div class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
     <!-- Header -->
-    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0">
+    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/6 dark:border-white/6 shrink-0">
       <UIcon name="i-lucide-messages-square" class="size-4 text-muted" />
       <span class="text-xs font-semibold text-muted uppercase tracking-wider">Chat</span>
     </div>
@@ -134,7 +134,7 @@ const showWorkingIndicator = computed(() => {
           <template v-for="(part, i) in message?.parts" :key="`${message?.id}-${i}`">
             <div
               v-if="part?.type === 'text' && (part as any).text?.trim()"
-              class="bg-black/[0.02] dark:bg-white/[0.04] ring-1 ring-black/[0.06] dark:ring-white/[0.08] rounded-2xl rounded-bl-md px-3.5 py-2.5 max-w-[85%] text-sm leading-relaxed markdown-body shadow-sm"
+              class="bg-black/2 dark:bg-white/4 ring-1 ring-black/6 dark:ring-white/8 rounded-2xl rounded-bl-md px-3.5 py-2.5 max-w-[85%] text-sm leading-relaxed markdown-body shadow-sm"
               v-html="parseMarkdown(cleanAssistantText((part as any).text, getPromptForAssistant(message)))"
             />
           </template>

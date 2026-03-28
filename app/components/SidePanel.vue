@@ -259,10 +259,10 @@ watch(
         <button
           type="button"
           class="sidebar-rail-btn"
-          :class="isNavActive('dashboard') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('dashboard') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'dashboard')"
         >
-          <UIcon name="i-lucide-layout-dashboard" class="size-[18px]" />
+          <UIcon name="i-lucide-layout-dashboard" class="size-4.5" />
         </button>
       </UTooltip>
 
@@ -270,20 +270,20 @@ watch(
         <button
           type="button"
           class="sidebar-rail-btn"
-          :class="isNewChatActive ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNewChatActive ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/4 dark:hover:bg-white/6'"
           @click="() => { newChatSelected = true; emit('newChat') }"
         >
-          <UIcon name="i-lucide-square-pen" class="size-[18px]" />
+          <UIcon name="i-lucide-square-pen" class="size-4.5" />
         </button>
       </UTooltip>
 
       <UTooltip :text="t('search')">
         <button
           type="button"
-          class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+          class="sidebar-rail-btn text-muted hover:bg-black/4 dark:hover:bg-white/6"
           @click="searchOpen = true"
         >
-          <UIcon name="i-lucide-search" class="size-[18px]" />
+          <UIcon name="i-lucide-search" class="size-4.5" />
         </button>
       </UTooltip>
 
@@ -291,10 +291,10 @@ watch(
         <button
           type="button"
           class="sidebar-rail-btn"
-          :class="isNavActive('vault') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('vault') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'vault')"
         >
-          <UIcon name="i-lucide-archive" class="size-[18px]" />
+          <UIcon name="i-lucide-archive" class="size-4.5" />
         </button>
       </UTooltip>
 
@@ -302,10 +302,10 @@ watch(
         <button
           type="button"
           class="sidebar-rail-btn"
-          :class="isNavActive('authentications') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('authentications') ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'authentications')"
         >
-          <UIcon name="i-lucide-key-round" class="size-[18px]" />
+          <UIcon name="i-lucide-key-round" class="size-4.5" />
         </button>
       </UTooltip>
 
@@ -320,7 +320,7 @@ watch(
           class="sidebar-rail-btn text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] disabled:opacity-40"
           :disabled="!chatHistory.length"
         >
-          <UIcon name="i-lucide-messages-square" class="size-[18px]" />
+          <UIcon name="i-lucide-messages-square" class="size-4.5" />
         </button>
       </UDropdownMenu>
 
@@ -335,7 +335,7 @@ watch(
           class="sidebar-rail-btn text-muted hover:bg-white/[0.06] disabled:opacity-40"
           :disabled="!pinnedWorkflows.length"
         >
-          <UIcon name="i-lucide-layers" class="size-[18px]" />
+          <UIcon name="i-lucide-layers" class="size-4.5" />
         </button>
       </UDropdownMenu>
 
@@ -359,7 +359,7 @@ watch(
           class="sidebar-rail-btn text-primary hover:bg-primary/10"
           @click="settingsOpen = true"
         >
-          <UIcon name="i-lucide-log-in" class="size-[18px]" />
+          <UIcon name="i-lucide-log-in" class="size-4.5" />
         </button>
       </UTooltip>
       <UTooltip v-else text="Profile">
@@ -390,7 +390,7 @@ watch(
       </UTooltip>
     </div>
 
-    <div v-show="expanded" class="flex flex-col h-full w-[280px]">
+    <div v-show="expanded" class="flex flex-col h-full w-70">
       <!-- Header -->
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
@@ -412,7 +412,7 @@ watch(
         <!-- Dashboard -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('dashboard') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('dashboard') ? 'bg-primary/10' : 'hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'dashboard')"
         >
           <UIcon
@@ -426,7 +426,7 @@ watch(
         <!-- New Chat -->
         <button
           class="group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-default transition-colors text-left"
-          :class="isNewChatActive ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNewChatActive ? 'bg-primary/10' : 'hover:bg-black/4 dark:hover:bg-white/6'"
           @click="() => { newChatSelected = true; emit('newChat') }"
         >
           <UIcon
@@ -439,7 +439,7 @@ watch(
 
         <!-- Search (overlay only — doesn't change active page) -->
         <button
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left hover:bg-black/4 dark:hover:bg-white/6"
           @click="searchOpen = true"
         >
           <UIcon
@@ -452,7 +452,7 @@ watch(
         <!-- Vault -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('vault') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('vault') ? 'bg-primary/10' : 'hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'vault')"
         >
           <UIcon
@@ -467,7 +467,7 @@ watch(
         <!-- Authentications -->
         <button
           class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-default transition-colors text-left"
-          :class="isNavActive('authentications') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('authentications') ? 'bg-primary/10' : 'hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'authentications')"
         >
           <UIcon
@@ -490,7 +490,7 @@ watch(
             class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
             :class="chat.id === activeChatId && activeView === null && activeWorkflowId === null
               ? 'bg-primary/10 text-default'
-              : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-default'"
+              : 'text-muted hover:bg-black/4 dark:hover:bg-white/6 hover:text-default'"
             @click="() => { newChatSelected = false; emit('selectChat', chat.id) }"
           >
             <!-- selecting a chat clears New Chat selection -->
@@ -534,7 +534,7 @@ watch(
             v-for="wf in pinnedWorkflows"
             :key="`pinned-${wf.id}`"
             class="group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors"
-            :class="wf.id === activeWorkflowId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-default'"
+            :class="wf.id === activeWorkflowId ? 'bg-primary/10 text-default' : 'text-muted hover:bg-black/4 dark:hover:bg-white/6 hover:text-default'"
             @click="emit('selectWorkflow', wf.id, wf.title)"
           >
             <!-- Inline rename -->
@@ -604,7 +604,7 @@ watch(
       </div>
 
       <!-- Footer: Login/Signup or Profile -->
-      <div class="shrink-0 px-2 py-2 border-t border-black/[0.06] dark:border-white/[0.06]">
+      <div class="shrink-0 px-2 py-2 border-t border-black/6 dark:border-white/6">
         <!-- Logged out: Sign in button -->
         <button
           v-if="!settings.isLoggedIn.value"
@@ -619,7 +619,7 @@ watch(
         <button
           v-else
           class="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left"
-          :class="isNavActive('profile') ? 'bg-primary/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'"
+          :class="isNavActive('profile') ? 'bg-primary/10' : 'hover:bg-black/4 dark:hover:bg-white/6'"
           @click="emit('selectView', 'profile')"
         >
           <div

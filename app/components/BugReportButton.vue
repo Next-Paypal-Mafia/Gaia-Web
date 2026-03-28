@@ -97,7 +97,7 @@ async function onSubmit() {
               :aria-label="t('bug_report.close_aria')"
               @click="open = false"
             >
-              <UIcon name="i-lucide-x" class="size-[18px]" />
+              <UIcon name="i-lucide-x" class="size-4.5" />
             </button>
           </div>
 

@@ -88,20 +88,20 @@ watch(open, (val) => {
             placeholder="Search chats and workflows..."
             class="flex-1"
             size="md"
-            :ui="{ base: 'bg-black/[0.02] dark:bg-white/[0.04] border-black/[0.1] dark:border-white/10' }"
+            :ui="{ base: 'bg-black/2 dark:bg-white/4 border-black/10 dark:border-white/10' }"
             autofocus
           >
             <template #leading>
               <UIcon name="i-lucide-search" class="size-4 text-muted" />
             </template>
           </UInput>
-          <button
-            class="size-9 shrink-0 rounded-full bg-black/[0.02] dark:bg-white/[0.04] flex items-center justify-center text-default hover:brightness-125 transition-all"
-            aria-label="Close"
-            @click="open = false"
-          >
-            <UIcon name="i-lucide-x" class="size-[18px]" />
-          </button>
+           <button
+             class="size-9 shrink-0 rounded-full bg-black/2 dark:bg-white/4 flex items-center justify-center text-default hover:brightness-125 transition-all"
+             aria-label="Close"
+             @click="open = false"
+           >
+             <UIcon name="i-lucide-x" class="size-4.5" />
+           </button>
         </div>
 
         <!-- Results list -->
@@ -130,7 +130,7 @@ watch(open, (val) => {
               <button
                 v-for="workflow in filteredWorkflows"
                 :key="workflow.id"
-                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-black/[0.03] dark:hover:bg-white/[0.06] hover:text-default"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors w-full text-muted hover:bg-black/3 dark:hover:bg-white/6 hover:text-default"
                 @click="selectWorkflowAndClose(workflow.id)"
               >
                 <UIcon name="i-lucide-git-branch" class="size-4 shrink-0 text-muted" />
