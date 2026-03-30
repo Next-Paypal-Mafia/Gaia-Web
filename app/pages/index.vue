@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { UIMessage } from '~/composables/useOpenCodeAgent'
+import type { BrowserAgentBudget, UIMessage } from '~/composables/useOpenCodeAgent'
 import {
   buildPersistedPayload,
   cloneUIMessages,
   persistChatState,
   readChatBootstrap,
 } from '~/composables/useChatLocalPersistence'
-import { useApiVersion } from '~/composables/useApiVersion'
+import { useServerCompatibility } from '~/composables/useServerCompatibility'
 
 const config = useRuntimeConfig()
 const supabase = useSupabaseClient()
@@ -15,6 +15,7 @@ const toast = useToast()
 const boot = readChatBootstrap()
 const activeChatId = ref(boot.activeChatId)
 const streamingChatId = ref(boot.streamingChatId)
+const focusedBrowserMessageId = ref<string | null>(null)
 const chatHistory = ref(boot.chatHistory)
 const chatSessions = ref<Record<string, UIMessage[]>>(boot.chatSessions)
 const browserRevealed = ref(boot.browserRevealed)
@@ -23,13 +24,132 @@ const dismissedTaskFeedbackAssistantIds = ref(new Set(boot.dismissedFeedbackIds)
 
 const screencast = useScreencast()
 const agent = useOpenCodeAgent()
-const apiVersion = useApiVersion()
 const usage = useUsage()
 const settings = useSettings()
 const { t } = useI18n()
 
 const limitReachedOpen = ref(false)
+const limitReachedTitle = computed(() => t('limit_reached_title', 'Limit reached'))
+const limitReachedDescription = computed(() =>
+  settings.isLoggedIn.value
+    ? t('limit_reached_pro', 'You have used all available requests for your current plan. Upgrade to a premium tier to continue browsing without limits.')
+    : t('limit_reached_anon', 'Anonymous users are limited to 1 request. Sign in or create an account to get more requests and save your chat history.'),
+)
 
+const serverCompatibility = useServerCompatibility()
+const authToken = ref<string | undefined>(undefined)
+let authStateSubscription: { unsubscribe: () => void } | null = null
+const viewportDebugEnabled = import.meta.dev
+type UsageDebugTokenBreakdown = {
+  input: number
+  output: number
+  reasoning: number
+  cache: {
+    read: number
+    write: number
+  }
+  total: number
+}
+
+type UsageDebugPayload = {
+  sessionId: string
+  opencodeSessionId: string
+  activeRunId: string | null
+  generatedAt: number
+  totals: {
+    cost: number
+    tokens: UsageDebugTokenBreakdown
+  }
+  messages: Array<{
+    messageId: string
+    runId: string | null
+    role: string
+    providerID: string | null
+    modelID: string | null
+    mode: string | null
+    finish: string | null
+    time: {
+      created: number | null
+      completed: number | null
+    }
+    cost: number | null
+    tokens: UsageDebugTokenBreakdown
+    limits: {
+      context: number | null
+      output: number | null
+    }
+    stepFinishes: Array<{
+      partId: string | null
+      reason: string | null
+      cost: number | null
+      tokens: UsageDebugTokenBreakdown
+    }>
+  }>
+}
+
+const viewportDebug = ref<null | {
+  viewport: {
+    runId: string | null
+    agentId: string | null
+    contextId: string | null
+    targetId: string | null
+    browserSessionName: string | null
+  }
+  activeRunId: string | null
+  processing: boolean
+  runs: Array<{
+    runId: string
+    status: string
+    contextId: string | null
+    browserSessionName: string
+    browserContextId: string | null
+    targetId: string | null
+    usesBrowser: boolean
+    browserAgentBudget: BrowserAgentBudget
+  }>
+} | null>(null)
+const usageDebug = ref<UsageDebugPayload | null>(null)
+const viewportDebugRuns = computed(() => {
+  const debug = viewportDebug.value
+  if (!debug) return [] as Array<{
+    runId: string
+    status: string
+    contextId: string | null
+    browserSessionName: string
+    browserContextId: string | null
+    targetId: string | null
+    usesBrowser: boolean
+    browserAgentBudget: BrowserAgentBudget
+  }>
+
+  return debug.runs.map((run) => ({
+    ...run,
+    browserAgentBudget: agent.runs.value[run.runId]?.browserAgentBudget ?? run.browserAgentBudget,
+  }))
+})
+const viewportDebugPrimaryRun = computed(() => {
+  const debug = viewportDebug.value
+  const runs = viewportDebugRuns.value
+  if (!debug || runs.length === 0) return null
+
+  return runs.find(run => run.runId === debug.viewport.runId)
+    ?? runs.find(run => run.runId === debug.activeRunId)
+    ?? runs[0]
+    ?? null
+})
+const usageDebugJson = computed(() =>
+  usageDebug.value ? JSON.stringify(usageDebug.value, null, 2) : "",
+)
+const usageDebugLatestMessage = computed(() => {
+  const messages = usageDebug.value?.messages ?? []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.role === "assistant" || (message?.tokens.total ?? 0) > 0) return message
+  }
+  return null
+})
+let viewportDebugTimer: ReturnType<typeof setInterval> | null = null
+let usageDebugTimer: ReturnType<typeof setInterval> | null = null
 /** Hydrate agent memory from the restored tab so Activity matches chatSessions (fixes empty panel on reload). */
 agent.resetChat(cloneUIMessages(chatSessions.value[streamingChatId.value] ?? []))
 
@@ -110,23 +230,109 @@ const currentIsRunning = computed(() =>
   isViewingStreamingChat.value && agent.isAgentRunning.value,
 )
 
-/** One agent session + one screencast — viewport follows the “live” chat, not necessarily the selected row */
-const liveBrowserMismatch = computed(
-  () =>
-    !isViewingStreamingChat.value
-    && (agent.isAgentRunning.value || screencast.isStreaming.value),
-)
+const focusedBrowserMismatch = computed(() => {
+  const runId = agent.focusedBrowserRunId.value
+  if (!runId) return null
 
-const streamingChatTitle = computed(() => {
-  const id = streamingChatId.value
-  const item = chatHistory.value.find(c => c.id === id)
-  const t = item?.title?.trim()
-  return t && t.length > 0 ? t : 'another chat'
+  const messages = currentMessages.value
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.runId !== runId) continue
+    const mismatch = message.parts.find(part => part.type === 'diagnostic-browser-mismatch')
+    if (mismatch)
+      return mismatch as { reason?: string, command?: string, browserSessionName?: string }
+  }
+
+  return null
 })
 
-function openLiveBrowserChat() {
-  onSelectChat(streamingChatId.value)
+type BrowserViewEntry = {
+  key: string
+  runId: string
+  browserTaskId: string | null
+  messageId: string
+  label: string
 }
+
+function findFocusedBrowserEntry(entries: BrowserViewEntry[]): BrowserViewEntry | null {
+  const focusedRunId = agent.focusedBrowserRunId.value
+  if (!focusedRunId) return null
+
+  const focusedBrowserTaskId = agent.focusedBrowserTaskId.value ?? null
+  return entries.find(entry =>
+    entry.runId === focusedRunId
+    && (entry.browserTaskId ?? null) === focusedBrowserTaskId,
+  ) ?? null
+}
+
+const currentBrowserViewEntries = computed<BrowserViewEntry[]>(() => {
+  if (!isViewingStreamingChat.value)
+    return []
+
+  const entries: BrowserViewEntry[] = []
+  const seen = new Set<string>()
+
+  for (const message of currentMessages.value) {
+    if (message.role !== "assistant" || !message.runId)
+      continue
+
+    const run = agent.runs.value[message.runId]
+    if (!run)
+      continue
+
+    for (const browserTask of Object.values(run.browserTasks)) {
+      if (!browserTask.browserTaskId || !browserTask.contextId)
+        continue
+      if (browserTask.messageId && browserTask.messageId !== message.id)
+        continue
+
+      const key = `${message.runId}:${browserTask.browserTaskId}`
+      if (seen.has(key))
+        continue
+      seen.add(key)
+
+      entries.push({
+        key,
+        runId: message.runId,
+        browserTaskId: browserTask.browserTaskId,
+        messageId: browserTask.messageId ?? message.id,
+        label: browserTask.label ?? "Browser subagent",
+      })
+    }
+  }
+
+  for (const [runId, run] of Object.entries(agent.runs.value)) {
+    for (const browserTask of Object.values(run.browserTasks)) {
+      if (!browserTask.browserTaskId || !browserTask.contextId)
+        continue
+      const key = `${runId}:${browserTask.browserTaskId}`
+      if (seen.has(key))
+        continue
+      seen.add(key)
+      entries.push({
+        key,
+        runId,
+        browserTaskId: browserTask.browserTaskId,
+        messageId: browserTask.messageId ?? `run-${runId}`,
+        label: browserTask.label ?? "Browser subagent",
+      })
+    }
+  }
+
+  return entries
+})
+
+const liveBrowserMismatch = computed(() =>
+  isBrowserView.value
+  && activeChatId.value !== streamingChatId.value
+  && screencast.isStreaming.value,
+)
+const browserMismatchFallback = 'Browser session mapping could not be verified for this focused run.'
+
+const streamingChatTitle = computed(() => {
+  const current = chatHistory.value.find(chat => chat.id === streamingChatId.value)
+  return current?.title?.trim() || "your live chat"
+})
 
 const showLanding = computed(() =>
   isBrowserView.value && currentMessages.value.length === 0 && !browserRevealed.value,
@@ -154,6 +360,118 @@ function clearTaskFeedbackTimer() {
   if (taskFeedbackTimer) {
     clearTimeout(taskFeedbackTimer)
     taskFeedbackTimer = null
+  }
+}
+
+async function refreshViewportDebug() {
+  if (!viewportDebugEnabled) return
+  if (!agent.sessionId.value) {
+    viewportDebug.value = null
+    return
+  }
+
+  try {
+    const debug = await agent.requestViewportDebug()
+    if (!debug) {
+      viewportDebug.value = null
+      return
+    }
+
+    const runs = Object.values(agent.runs.value).map(run => ({
+      runId: run.runId,
+      status: run.status,
+      contextId: run.contextId,
+      browserSessionName: run.browserSessionName ?? "",
+      browserContextId: run.browserContextId ?? null,
+      targetId: run.targetId ?? null,
+      usesBrowser: run.usesBrowser,
+      browserAgentBudget: run.browserAgentBudget ?? {
+        maxBrowserAgents: debug.browserAgentBudget.maxBrowserAgents,
+        activeBrowserTasks: debug.browserAgentBudget.activeBrowserAgents,
+        remainingBrowserTasks: debug.browserAgentBudget.remainingBrowserAgents,
+      },
+    }))
+
+    const focusedRunId = debug.viewport?.agentId
+      ? (Object.values(agent.runs.value).find(run =>
+          run.latestBrowserTaskId === debug.viewport?.agentId
+          || Object.values(run.browserTasks).some(task => task.browserTaskId === debug.viewport?.agentId),
+        )?.runId ?? null)
+      : null
+
+    viewportDebug.value = {
+      viewport: {
+        runId: focusedRunId,
+        agentId: debug.viewport?.agentId ?? null,
+        contextId: debug.viewport?.contextId ?? null,
+        targetId: debug.viewport?.targetId ?? null,
+        browserSessionName: debug.viewport?.browserSessionName ?? null,
+      },
+      activeRunId: agent.activeRunId.value,
+      processing: debug.processing,
+      runs,
+    }
+  }
+  catch {
+    // ignore dev-only debug failures
+  }
+}
+
+async function refreshUsageDebug() {
+  if (!viewportDebugEnabled) return
+  const apiUrl = config.public.serverUrl
+  const sid = agent.sessionId.value
+  if (!apiUrl || !sid) {
+    usageDebug.value = null
+    return
+  }
+
+  const headers: Record<string, string> = {}
+  if (authToken.value) headers.Authorization = `Bearer ${authToken.value}`
+
+  try {
+    const res = await fetch(`${apiUrl}/sessions/${sid}/usage`, {
+      headers,
+      credentials: authToken.value ? "omit" : "include",
+    })
+    if (!res.ok) return
+    usageDebug.value = {
+      ...(await res.json()),
+      activeRunId: agent.activeRunId.value,
+    }
+  }
+  catch {
+    // ignore dev-only debug failures
+  }
+}
+
+function startViewportDebugPolling() {
+  if (!viewportDebugEnabled) return
+  if (viewportDebugTimer) clearInterval(viewportDebugTimer)
+  viewportDebugTimer = setInterval(() => {
+    void refreshViewportDebug()
+  }, 3000)
+}
+
+function stopViewportDebugPolling() {
+  if (viewportDebugTimer) {
+    clearInterval(viewportDebugTimer)
+    viewportDebugTimer = null
+  }
+}
+
+function startUsageDebugPolling() {
+  if (!viewportDebugEnabled) return
+  if (usageDebugTimer) clearInterval(usageDebugTimer)
+  usageDebugTimer = setInterval(() => {
+    void refreshUsageDebug()
+  }, 3000)
+}
+
+function stopUsageDebugPolling() {
+  if (usageDebugTimer) {
+    clearInterval(usageDebugTimer)
+    usageDebugTimer = null
   }
 }
 
@@ -213,39 +531,108 @@ function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
   schedulePersistChats()
 }
 
-onMounted(async () => {
-  const apiUrl = config.public.serverUrl
-  if (!apiUrl) {
-    console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
+const clientBooting = ref(false)
+
+async function bootClient(forceCompatibilityCheck = false) {
+  if (clientBooting.value) return
+  clientBooting.value = true
+
+  try {
+    const compatibilityState = await serverCompatibility.check(forceCompatibilityCheck)
+    if (compatibilityState.status === "incompatible") {
+      console.warn(`[jellybyte] API Version Mismatch: expected ${serverCompatibility.expectedVersion}, got ${compatibilityState.serverVersion}. Error: ${compatibilityState.error}`)
+      return
+    }
+
+    const apiUrl = config.public.serverUrl
+    if (!apiUrl) {
+      console.warn('[jellybyte] SERVER_URL is not set — skipping session creation')
+      return
+    }
+
+    if (compatibilityState.status === "unreachable") {
+      console.warn(`[jellybyte] Could not verify backend API version before startup. Error: ${compatibilityState.error}`)
+    }
+
+    if (agent.sessionId.value) return
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    authToken.value = token
+
+    await agent.connect(apiUrl, token)
+    void refreshViewportDebug()
+    void refreshUsageDebug()
+    startViewportDebugPolling()
+    startUsageDebugPolling()
+  }
+  finally {
+    clientBooting.value = false
+  }
+}
+
+async function reconnectClientForAuthChange(nextToken?: string) {
+  authToken.value = nextToken
+
+  if (clientBooting.value)
     return
-  }
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+  if (agent.sessionId.value)
+    await agent.disconnect()
 
-  const { compatible, serverVersion, error } = await apiVersion.checkVersion(apiUrl)
-  if (!compatible) {
-    console.warn(`[jellybyte] API Version Mismatch: expected ${apiVersion.EXPECTED_API_VERSION}, got ${serverVersion}. Error: ${error}`)
-    toast.add({
-      title: 'Backend API Version Mismatch',
-      description: `The server (${serverVersion || 'unknown'}) is incompatible with this client (${apiVersion.EXPECTED_API_VERSION}). Some features may not work.`,
-      icon: 'i-lucide-alert-triangle',
-      color: 'warning',
-      duration: 10000,
-    })
-  }
+  await bootClient(true)
+}
 
-  await agent.connect(apiUrl, token)
+onMounted(() => {
+  void bootClient()
 
-  if (agent.sessionId.value) {
-    screencast.start(apiUrl, agent.sessionId.value, token)
-  }
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const nextToken = session?.access_token
+    if (nextToken === authToken.value)
+      return
+    void reconnectClientForAuthChange(nextToken)
+  })
+
+  authStateSubscription = data.subscription
 })
 
+watch(
+  () => agent.focusedBrowserRunId.value,
+  (runId) => {
+    if (!runId) {
+      focusedBrowserMessageId.value = null
+    }
+    if (!agent.sessionId.value) return
+    if (runId) {
+      const apiUrl = config.public.serverUrl
+      if (apiUrl)
+        screencast.start(apiUrl, agent.sessionId.value, authToken.value)
+    }
+    else {
+      screencast.stop()
+    }
+    void refreshViewportDebug()
+    void refreshUsageDebug()
+  },
+)
+
+watch(
+  () => [agent.sessionId.value, agent.activeRunId.value, agent.runs.value],
+  () => {
+    void refreshViewportDebug()
+    void refreshUsageDebug()
+  },
+  { deep: true },
+)
+
 onUnmounted(async () => {
+  authStateSubscription?.unsubscribe()
+  authStateSubscription = null
   if (tilingAnimTimer) clearTimeout(tilingAnimTimer)
   clearTaskFeedbackTimer()
   flushPersistChatsSync()
+  stopViewportDebugPolling()
+  stopUsageDebugPolling()
   screencast.stop()
   await agent.disconnect()
 })
@@ -289,12 +676,12 @@ function onLandingSend(text?: string) {
 
 // Auto-show viewport when browser tools are seen
 watch(() => agent.messages.value, (msgs) => {
-  const hasBrowserTool = msgs.some(m => 
-    m.role === 'assistant' && 
-    m.parts.some(p => 
-      typeof p.type === 'string' && 
-      p.type.startsWith('tool-') && 
-      !p.type.includes('websearch') && 
+  const hasBrowserTool = msgs.some(m =>
+    m.role === 'assistant' &&
+    m.parts.some(p =>
+      typeof p.type === 'string' &&
+      p.type.startsWith('tool-') &&
+      !p.type.includes('websearch') &&
       !p.type.includes('Exa')
     )
   )
@@ -383,6 +770,8 @@ watch(
 )
 
 function onNewChat() {
+  void agent.clearBrowserFocus()
+  focusedBrowserMessageId.value = null
   if (agent.isAgentRunning.value) {
     toast.add({
       title: 'Wait for the current task',
@@ -431,6 +820,8 @@ function onNewChat() {
 }
 
 function onSelectChat(id: string) {
+  void agent.clearBrowserFocus()
+  focusedBrowserMessageId.value = null
   if (id === activeChatId.value && isBrowserView.value) return
 
   // If agent is idle, persist its state before switching
@@ -457,6 +848,10 @@ function onSelectChat(id: string) {
     agent.resetChat(cloneUIMessages(stored))
   }
   schedulePersistChats()
+}
+
+function openLiveBrowserChat() {
+  onSelectChat(streamingChatId.value)
 }
 
 function onSelectWorkflow(id: string, title: string) {
@@ -564,6 +959,53 @@ function onSendInstruction(text: string) {
   }
   agent.sendInstruction(text)
 }
+
+async function focusBrowserEntry(
+  payload: { runId: string, browserTaskId?: string | null, messageId: string },
+  showUnavailableToast = true,
+) {
+  const ok = await agent.focusBrowserRun(payload.runId, payload.browserTaskId ?? null)
+  if (!ok) {
+    if (showUnavailableToast) {
+      toast.add({
+        title: 'Browser not available',
+        description: 'That run does not have an active browser context to display.',
+        color: 'warning',
+        icon: 'i-lucide-monitor-off',
+      })
+    }
+    return false
+  }
+  focusedBrowserMessageId.value = payload.messageId
+  return true
+}
+
+watch(
+  [currentBrowserViewEntries, isBrowserView, () => agent.focusedBrowserRunId.value, () => agent.focusedBrowserTaskId.value],
+  ([entries, browserView]) => {
+    if (!browserView || entries.length === 0) return
+
+    const focusedEntry = findFocusedBrowserEntry(entries)
+    if (focusedEntry) {
+      if (focusedBrowserMessageId.value !== focusedEntry.messageId)
+        focusedBrowserMessageId.value = focusedEntry.messageId
+      return
+    }
+
+    if (agent.focusedBrowserRunId.value || agent.focusedBrowserTaskId.value)
+      return
+
+    const defaultEntry = entries[entries.length - 1]
+    if (!defaultEntry) return
+
+    void focusBrowserEntry(defaultEntry, false)
+  },
+  { flush: 'post' },
+)
+
+async function onFocusBrowserRun(payload: { runId: string, browserTaskId?: string | null, messageId: string }) {
+  await focusBrowserEntry(payload)
+}
 </script>
 
 <template>
@@ -575,12 +1017,12 @@ function onSendInstruction(text: string) {
     <div class="jelly-orb jelly-orb--3" />
   </div>
   <!-- Left side panel -->
-  <SidePanel :expanded="sidebarExpanded" :chat-history="chatsWithMessages"
-    :active-chat-id="activeChatId" :active-view="activeView" :active-workflow-id="activeWorkflowId"
-    :pinned-workflows="wf.pinnedWorkflows.value" @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true"
-    @new-chat="onNewChat" @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
-    @rename-chat="onRenameChat" @delete-chat="onDeleteChat" @toggle-pin-workflow="onTogglePinWorkflow"
-    @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
+  <SidePanel :expanded="sidebarExpanded" :chat-history="chatsWithMessages" :active-chat-id="activeChatId"
+    :active-view="activeView" :active-workflow-id="activeWorkflowId" :pinned-workflows="wf.pinnedWorkflows.value"
+    @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true" @new-chat="onNewChat" @select-chat="onSelectChat"
+    @select-workflow="onSelectWorkflow" @select-view="onSelectView" @rename-chat="onRenameChat"
+    @delete-chat="onDeleteChat" @toggle-pin-workflow="onTogglePinWorkflow" @rename-workflow="onRenameWorkflow"
+    @delete-workflow="onDeleteWorkflow" />
 
   <!-- Right side -->
   <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
@@ -625,32 +1067,29 @@ function onSendInstruction(text: string) {
 
     <!-- ═══ Browser + Chat / Other panels ═══ -->
     <template v-if="!showLanding">
-      <!-- Main content area -->
       <div class="flex-1 min-h-0 mx-2 relative overflow-hidden flex flex-col">
-        <!-- Browser view: viewport + agent (chat lives in agent panel as glass carousel); input fixed below -->
         <Transition name="browser-reveal">
           <div v-show="isBrowserView" class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10">
             <div class="flex-1 min-h-0 relative overflow-hidden">
-            <div class="absolute inset-0 browser-grid" :class="[
+              <div class="absolute inset-0 browser-grid" :class="[
                 sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
                 tilingAnimActive ? 'browser-grid--tiling' : '',
                 viewportHidden ? 'browser-grid--viewport-hidden' : '',
               ]">
-                <!-- Viewport tile -->
                 <div class="browser-grid__viewport min-h-0">
                   <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
-                    <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
+                    <LazyBrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
                       :is-connected="screencast.isStreaming.value" :is-loading="false"
                       :page-background-color="screencast.pageBackgroundColor.value" />
                     <div v-if="liveBrowserMismatch"
-                      class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center">
+                      class="absolute inset-0 z-15 flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center">
                       <UIcon name="i-lucide-monitor-smartphone" class="size-10 text-white/85 shrink-0" />
                       <p class="text-sm font-medium text-white/95 max-w-[18rem] leading-snug">
                         Live browser is tied to
                         <span class="text-primary font-semibold">{{ streamingChatTitle }}</span>
                         — not this thread.
                       </p>
-                      <p class="text-xs text-white/65 max-w-[19rem] leading-relaxed">
+                      <p class="text-xs text-white/65 max-w-76 leading-relaxed">
                         The sidebar can show a different chat than the one driving the agent. Open the live thread to
                         align the transcript with what you see here.
                       </p>
@@ -665,26 +1104,118 @@ function onSendInstruction(text: string) {
                         Live
                       </span>
                     </div>
+                    <div v-if="focusedBrowserMismatch"
+                      class="absolute bottom-2.5 right-2.5 z-13 max-w-xs rounded-2xl border border-warning/35 bg-warning/12 px-3 py-2.5 text-[11px] text-warning shadow-lg backdrop-blur-md">
+                      <div class="flex items-start gap-2">
+                        <UIcon name="i-lucide-triangle-alert" class="mt-0.5 size-4 shrink-0" />
+                        <div class="min-w-0">
+                          <p class="font-semibold">Browser session warning</p>
+                          <p class="mt-0.5 text-warning/90 leading-relaxed">{{ focusedBrowserMismatch.reason ||
+                            browserMismatchFallback }}</p>
+                          <p v-if="focusedBrowserMismatch.browserSessionName" class="mt-1 text-warning/80">
+                            Expected session: <span class="font-mono">{{ focusedBrowserMismatch.browserSessionName
+                              }}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="viewportDebugEnabled && viewportDebug"
+                      class="absolute top-2.5 right-2.5 z-12 w-72 rounded-2xl border border-black/10 bg-white/88 p-3 text-[11px] text-black/80 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-black/65 dark:text-white/80">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-semibold tracking-wide text-[10px] uppercase text-primary/90">Viewport
+                          Debug</span>
+                        <span class="text-[10px] text-dimmed">dev only</span>
+                      </div>
+                      <div class="mt-2 space-y-1.5">
+                        <p><span class="text-dimmed">Focused run:</span> {{ viewportDebug.viewport.runId || 'none' }}
+                        </p>
+                        <p><span class="text-dimmed">Browser session:</span> {{
+                          viewportDebug.viewport.browserSessionName || 'none' }}</p>
+                        <p><span class="text-dimmed">Context:</span> {{ viewportDebug.viewport.contextId || 'none' }}
+                        </p>
+                        <p><span class="text-dimmed">Target:</span> {{ viewportDebug.viewport.targetId || 'none' }}</p>
+                        <p><span class="text-dimmed">Active run:</span> {{ viewportDebug.activeRunId || 'none' }}</p>
+                        <p><span class="text-dimmed">Browser budget:</span> {{ viewportDebugPrimaryRun ?
+                          `${viewportDebugPrimaryRun.browserAgentBudget.remainingBrowserTasks} remaining /
+                          ${viewportDebugPrimaryRun.browserAgentBudget.maxBrowserAgents} max` : 'none' }}</p>
+                        <p><span class="text-dimmed">Active browser tasks:</span> {{
+                          viewportDebugPrimaryRun?.browserAgentBudget.activeBrowserTasks ?? 0 }}</p>
+                      </div>
+                      <div v-if="viewportDebugRuns.length"
+                        class="mt-3 border-t border-black/8 pt-2 dark:border-white/10">
+                        <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-dimmed">Runs</p>
+                        <div class="max-h-36 space-y-1 overflow-auto pr-1">
+                          <div v-for="run in viewportDebugRuns" :key="run.runId"
+                            class="rounded-xl bg-black/4 px-2 py-1.5 dark:bg-white/6">
+                            <p class="truncate font-medium">{{ run.runId }}</p>
+                            <p class="text-dimmed">{{ run.status }} · {{ run.browserSessionName }}</p>
+                            <p class="truncate text-dimmed">ctx {{ run.contextId || 'none' }} · target {{ run.targetId
+                              || 'none' }}</p>
+                            <p class="text-dimmed">budget {{ run.browserAgentBudget.remainingBrowserTasks }} remain · {{
+                              run.browserAgentBudget.activeBrowserTasks }} active / {{
+                                run.browserAgentBudget.maxBrowserAgents }} max</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="viewportDebugEnabled && usageDebug"
+                      class="absolute top-2.5 left-2.5 z-12 w-80 max-h-88 overflow-hidden rounded-2xl border border-black/10 bg-white/88 p-3 text-[11px] text-black/80 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-black/65 dark:text-white/80">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-semibold tracking-wide text-[10px] uppercase text-primary/90">Usage
+                          Debug</span>
+                        <span class="text-[10px] text-dimmed">dev only</span>
+                      </div>
+                      <div class="mt-2 space-y-1.5">
+                        <p><span class="text-dimmed">Messages:</span> {{ usageDebug.messages.length }}</p>
+                        <p><span class="text-dimmed">Active run:</span> {{ usageDebug.activeRunId || 'none' }}</p>
+                        <p><span class="text-dimmed">Total tokens:</span> {{ usageDebug.totals.tokens.total }}</p>
+                        <p><span class="text-dimmed">Input / output:</span> {{ usageDebug.totals.tokens.input }} / {{
+                          usageDebug.totals.tokens.output }}</p>
+                        <p><span class="text-dimmed">Reasoning:</span> {{ usageDebug.totals.tokens.reasoning }}</p>
+                        <p><span class="text-dimmed">Cache:</span> {{ usageDebug.totals.tokens.cache.read }} read · {{
+                          usageDebug.totals.tokens.cache.write }} write</p>
+                        <p><span class="text-dimmed">Cost:</span> {{ usageDebug.totals.cost }}</p>
+                      </div>
+                      <div v-if="usageDebugLatestMessage"
+                        class="mt-3 rounded-xl bg-black/4 px-2.5 py-2 dark:bg-white/6">
+                        <p class="font-semibold">Latest message</p>
+                        <p class="mt-1 truncate text-dimmed">{{ usageDebugLatestMessage.messageId }}</p>
+                        <p class="text-dimmed">run {{ usageDebugLatestMessage.runId || 'none' }} · {{
+                          usageDebugLatestMessage.role }}</p>
+                        <p class="text-dimmed">{{ usageDebugLatestMessage.providerID || 'unknown' }} / {{
+                          usageDebugLatestMessage.modelID || 'unknown' }}</p>
+                        <p class="text-dimmed">tokens {{ usageDebugLatestMessage.tokens.total }} · context {{
+                          usageDebugLatestMessage.tokens.input }} / {{ usageDebugLatestMessage.limits.context ?? 'n/a'
+                          }}</p>
+                      </div>
+                      <details
+                        class="mt-3 rounded-xl border border-black/8 bg-black/3 px-2.5 py-2 dark:border-white/8 dark:bg-white/4">
+                        <summary class="cursor-pointer select-none font-medium">Raw payload</summary>
+                        <pre
+                          class="mt-2 max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word text-[10px] leading-relaxed">
+                          {{ usageDebugJson }}</pre>
+                      </details>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Agent: thinking + glass chat carousel -->
                 <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
-                  <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
+                  <LazyAgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
                     :status="currentStatus" :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
-                    :viewport-hidden="viewportHidden"
-                    @task-feedback-vote="onTaskFeedbackVote"
+                    :viewport-hidden="viewportHidden" :browser-view-entries="currentBrowserViewEntries"
+                    :focused-browser-run-id="agent.focusedBrowserRunId.value"
+                    :focused-browser-task-id="agent.focusedBrowserTaskId.value"
+                    :focused-browser-message-id="focusedBrowserMessageId" @task-feedback-vote="onTaskFeedbackVote"
                     @task-feedback-banner-entered="taskFeedbackBannerEntered = true"
-                    @toggle-viewport="viewportHidden = !viewportHidden" />
+                    @toggle-viewport="viewportHidden = !viewportHidden" @focus-browser-run="onFocusBrowserRun" />
                 </div>
               </div>
             </div>
 
             <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
               <div class="w-full max-w-3xl">
-                <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
-                  :survey-pending="taskFeedbackOpen"
-                  :survey-banner-visible="taskFeedbackBannerEntered"
+                <LazyChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                  :survey-pending="taskFeedbackOpen" :survey-banner-visible="taskFeedbackBannerEntered"
                   :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
                   @stop="agent.stop" />
               </div>
@@ -692,89 +1223,71 @@ function onSendInstruction(text: string) {
           </div>
         </Transition>
 
-        <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
         <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
           <div v-if="activeView === 'vault'" key="vault" class="absolute inset-0 w-full h-full">
-            <VaultPanel v-model:open="vaultOpenProxy" :sidebar-expanded="sidebarExpanded" class="h-full rounded-2xl"
+            <LazyVaultPanel v-model:open="vaultOpenProxy" :sidebar-expanded="sidebarExpanded" class="h-full rounded-2xl"
               @show-sidebar="sidebarExpanded = true" />
           </div>
           <div v-else-if="activeView === 'dashboard'" key="dashboard" class="absolute inset-0 w-full h-full">
-            <DashboardPanel :workflows="wf.workflows.value" :pinned-ids="wf.pinnedIds.value"
+            <LazyDashboardPanel :workflows="wf.workflows.value" :pinned-ids="wf.pinnedIds.value"
               :can-pin-more="wf.canPinMore.value" @open-workflow="onOpenWorkflowFromDashboard"
               @create-workflow="onCreateWorkflowFromDashboard" @toggle-pin="onTogglePinWorkflow"
               @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
           </div>
           <div v-else-if="activeView === 'authentications'" key="authentications"
             class="absolute inset-0 w-full h-full">
-            <AuthenticationsPanel />
+            <LazyAuthenticationsPanel />
           </div>
           <div v-else-if="activeView === 'profile'" key="profile"
             class="absolute inset-0 w-full h-full overflow-y-auto">
-            <ProfilePanel @back="activeView = null" />
+            <LazyProfilePanel @back="activeView = null" />
           </div>
           <div v-else-if="activeWorkflowId !== null" :key="`workflow-${activeWorkflowId}`"
             class="absolute inset-0 w-full h-full">
-            <WorkflowPanel :workflow-title="activeWorkflowTitle" />
+            <LazyWorkflowPanel :workflow-title="activeWorkflowTitle" />
           </div>
         </Transition>
       </div>
     </template>
-  </div>
-  <BugReportButton />
-  <LanguageSwitchPrompt />
 
-  <UModal
-    v-model:open="limitReachedOpen"
-    :ui="{
+    <BugReportButton />
+    <LanguageSwitchPrompt />
+
+    <UModal v-model:open="limitReachedOpen" :ui="{
       content: 'max-w-md',
       body: 'p-0 sm:p-0',
       header: 'hidden',
       footer: 'hidden',
-    }"
-  >
-    <template #body>
-      <div class="p-8 text-center glass-jelly border-0 rounded-3xl relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-        
-        <div class="relative z-10 space-y-5">
-          <div class="mx-auto size-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-[0_0_20px_rgba(var(--ui-color-primary-500),0.1)]">
-            <UIcon name="i-lucide-zap" class="size-8 text-primary" />
-          </div>
+    }">
+      <template #body>
+        <div class="p-8 text-center glass-jelly border-0 rounded-3xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-linear-to-b from-primary/5 to-transparent pointer-events-none" />
 
-          <div>
-            <h3 class="text-xl font-bold text-default tracking-tight">{{ t('limit_reached_title', 'Limit reached') }}</h3>
-            <p class="text-sm text-dimmed mt-2 leading-relaxed">
-              {{ settings.isLoggedIn.value 
-                ? t('limit_reached_pro', 'You have used all available requests for your current plan. Upgrade to a premium tier to continue browsing without limits.') 
-                : t('limit_reached_anon', 'Anonymous users are limited to 1 request. Sign in or create an account to get more requests and save your chat history.') 
-              }}
-            </p>
-          </div>
+          <div class="relative z-10 space-y-5">
+            <div
+              class="mx-auto size-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-[0_0_20px_rgba(var(--ui-color-primary-500),0.1)]">
+              <UIcon name="i-lucide-zap" class="size-8 text-primary" />
+            </div>
 
-          <div class="pt-2 flex flex-col gap-3">
-            <UButton
-              block
-              size="lg"
-              color="primary"
-              class="font-semibold shadow-lg shadow-primary/20"
-              @click="onSelectView('profile'); limitReachedOpen = false"
-            >
-              {{ settings.isLoggedIn.value ? 'Upgrade Plan' : 'Sign in / Sign up' }}
-            </UButton>
-            <UButton
-              block
-              size="lg"
-              variant="ghost"
-              color="neutral"
-              @click="limitReachedOpen = false"
-            >
-              Maybe later
-            </UButton>
+            <div>
+              <h3 class="text-xl font-bold text-default tracking-tight">{{ limitReachedTitle }}</h3>
+              <p class="text-sm text-dimmed mt-2 leading-relaxed">{{ limitReachedDescription }}</p>
+            </div>
+
+            <div class="pt-2 flex flex-col gap-3">
+              <UButton block size="lg" color="primary" class="font-semibold shadow-lg shadow-primary/20"
+                @click="onSelectView('profile'); limitReachedOpen = false">
+                {{ settings.isLoggedIn.value ? 'Upgrade Plan' : 'Sign in / Sign up' }}
+              </UButton>
+              <UButton block size="lg" variant="ghost" color="neutral" @click="limitReachedOpen = false">
+                Maybe later
+              </UButton>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
-  </UModal>
+      </template>
+    </UModal>
+  </div>
 </div>
 </template>
 

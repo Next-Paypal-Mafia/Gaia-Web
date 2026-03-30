@@ -5,6 +5,7 @@
 .nitro
 .cache
 dist
+.serverless
 
 # Node dependencies
 node_modules
@@ -17,6 +18,9 @@ logs
 .DS_Store
 .fleet
 .idea
+
+# Development
+.playwright-cli
 
 # Local env files
 .env

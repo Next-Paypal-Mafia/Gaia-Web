@@ -2,11 +2,20 @@ interface VersionResponse {
   api_version: string
 }
 
+export type ApiVersionCheckStatus = "compatible" | "incompatible" | "unreachable"
+
+export interface ApiVersionCheckResult {
+  status: ApiVersionCheckStatus
+  compatible: boolean
+  serverVersion: string | null
+  error?: string
+}
+
 export function useApiVersion() {
   const appConfig = useAppConfig()
   const EXPECTED_API_VERSION = appConfig.apiVersion
 
-  async function checkVersion(baseUrl: string): Promise<{ compatible: boolean; serverVersion: string | null; error?: string }> {
+  async function checkVersion(baseUrl: string): Promise<ApiVersionCheckResult> {
     try {
       // Remove trailing slash if present
       const cleanUrl = baseUrl.replace(/\/$/, "")
@@ -20,6 +29,7 @@ export function useApiVersion() {
 
       if (!res.ok) {
         return {
+          status: "unreachable",
           compatible: false,
           serverVersion: null,
           error: `Failed to fetch version: ${res.status} ${res.statusText}`
@@ -31,6 +41,7 @@ export function useApiVersion() {
 
       if (!serverVersion) {
         return {
+          status: "incompatible",
           compatible: false,
           serverVersion: null,
           error: "Missing api_version in response payload"
@@ -40,6 +51,7 @@ export function useApiVersion() {
       const compatible = serverVersion === EXPECTED_API_VERSION
 
       return {
+        status: compatible ? "compatible" : "incompatible",
         compatible,
         serverVersion
       }
@@ -47,6 +59,7 @@ export function useApiVersion() {
     } catch (err: any) {
       console.error("[useApiVersion] Error checking backend version:", err)
       return {
+        status: "unreachable",
         compatible: false,
         serverVersion: null,
         error: err.message || "Network error"

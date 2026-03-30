@@ -1,7 +1,10 @@
+## In Progress
 - Add forgot password page and button on login popup page
-- Implement Dashboard
-- Make Search popup larger 
-- For vault page make it have vault panel view at the top and chat at the bottom
-- Implement authentication page
-- Implment workflow page
-- Change favicon
+
+## Done
+- [x] Implement Dashboard (`DashboardPanel.vue`)
+- [x] Vault page: vault panel at top, chat at bottom
+- [x] Implement authentication page (`SettingsModal.vue`)
+- [x] Implement workflow page (`WorkflowPanel.vue`)
+- [ ] Make Search popup larger
+- [ ] Change favicon

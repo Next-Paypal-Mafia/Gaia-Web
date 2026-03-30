@@ -47,4 +47,36 @@ export default defineNuxtConfig({
   },
 
   css: ["~/assets/css/main.css"],
+
+  vite: {
+    optimizeDeps: {
+      include: ["@vue/devtools-core", "@vue/devtools-kit", "marked"],
+    },
+    build: {
+      chunkSizeWarningLimit: 600,
+      sourcemap: false,
+      rollupOptions: {
+        onwarn(warning, warn) {
+          const message =
+            typeof warning === "string" ? warning : warning.message;
+          if (message?.includes("Sourcemap is likely to be incorrect")) return;
+          warn(warning);
+        },
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return;
+            if (id.includes("/node_modules/@supabase/")) return "supabase";
+            if (
+              id.includes("/node_modules/@nuxt/ui/") ||
+              id.includes("/node_modules/reka-ui/") ||
+              id.includes("/node_modules/@floating-ui/")
+            ) {
+              return "ui-vendor";
+            }
+            if (id.includes("/node_modules/marked/")) return "markdown";
+          },
+        },
+      },
+    },
+  },
 });

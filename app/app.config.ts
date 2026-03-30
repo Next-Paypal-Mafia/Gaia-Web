@@ -5,5 +5,5 @@ export default defineAppConfig({
       neutral: "zinc",
     },
   },
-  apiVersion: "0.1.0",
+  apiVersion: "3.0.0",
 });

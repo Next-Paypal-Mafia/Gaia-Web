@@ -1,7 +1,10 @@
 <script setup lang="ts">
 const open = defineModel<boolean>('open', { required: true })
 const settings = useSettings()
+const currentPlan = useCurrentPlan()
 const toast = useToast()
+const planName = computed(() => currentPlan.plan.value.name)
+const planFeatureFlags = computed(() => currentPlan.featureFlags.value)
 
 type Page = 'main' | 'login' | 'signup' | 'verify'
 const transitionName = ref('slide-left')
@@ -232,7 +235,10 @@ async function handleLogout() {
               {{ initials }}
             </div>
             <h2 class="text-xl font-semibold text-default">{{ settings.username.value }}</h2>
-            <span class="text-xs text-dimmed mt-0.5">Free plan</span>
+            <span class="text-xs text-dimmed mt-0.5">{{ planName }} plan</span>
+            <span v-if="planFeatureFlags.length" class="text-[11px] text-dimmed mt-1 text-center max-w-[16rem]">
+              {{ planFeatureFlags.join(' · ') }}
+            </span>
 
             <button v-if="!settings.isLoggedIn.value"
               class="mt-3 px-5 py-1.5 rounded-full bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -260,11 +266,16 @@ async function handleLogout() {
                     :ui="{ base: 'text-right text-sm text-dimmed' }" />
                 </div>
                 <div class="flex items-center justify-between px-4 py-3">
-                  <div class="flex items-center gap-3">
-                    <UIcon name="i-lucide-sparkles" class="size-4 text-muted shrink-0" />
-                    <span class="text-sm text-default">Subscription</span>
+                <div class="flex items-center gap-3">
+                  <UIcon name="i-lucide-sparkles" class="size-4 text-muted shrink-0" />
+                  <span class="text-sm text-default">Subscription</span>
+                </div>
+                  <div class="text-right">
+                    <span class="text-sm text-dimmed">{{ planName }}</span>
+                    <p v-if="planFeatureFlags.length" class="text-[11px] text-dimmed mt-0.5 max-w-44">
+                      {{ planFeatureFlags.join(' · ') }}
+                    </p>
                   </div>
-                  <span class="text-sm text-dimmed">Free Plan</span>
                 </div>
               </div>
             </div>

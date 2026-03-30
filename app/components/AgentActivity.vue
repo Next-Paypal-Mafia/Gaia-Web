@@ -4,6 +4,7 @@ interface UIMessage {
   id: string
   role: 'user' | 'assistant'
   parts: Array<Record<string, any>>
+  runId?: string | null
 }
 
 interface StepGroup {
@@ -13,6 +14,14 @@ interface StepGroup {
   isCompleted: boolean
 }
 
+interface BrowserViewEntry {
+  key: string
+  runId: string
+  browserTaskId: string | null
+  messageId: string
+  label: string
+}
+
 const props = defineProps<{
   messages: UIMessage[]
   status: 'ready' | 'submitted' | 'streaming' | 'error'
@@ -20,6 +29,10 @@ const props = defineProps<{
   /** Agent session connected — for subtle empty hints */
   isConnected?: boolean
   viewportHidden?: boolean
+  browserViewEntries?: BrowserViewEntry[]
+  focusedBrowserRunId?: string | null
+  focusedBrowserTaskId?: string | null
+  focusedBrowserMessageId?: string | null
 }>()
 
 const taskFeedbackOpen = defineModel<boolean>('taskFeedbackOpen', { default: false })
@@ -28,6 +41,7 @@ const emit = defineEmits<{
   taskFeedbackVote: [sentiment: 'positive' | 'negative']
   taskFeedbackBannerEntered: []
   toggleViewport: []
+  focusBrowserRun: [payload: { runId: string, browserTaskId?: string | null, messageId: string }]
 }>()
 
 function onTaskFeedbackVote(sentiment: 'positive' | 'negative') {
@@ -40,6 +54,27 @@ function onTaskFeedbackBannerEntered() {
 
 function isToolPart(part: any): boolean {
   return typeof part.type === 'string' && part.type.startsWith('tool-')
+}
+
+function isBrowserMismatchPart(part: any): boolean {
+  return part?.type === 'diagnostic-browser-mismatch'
+}
+
+function isRunErrorPart(part: any): boolean {
+  return part?.type === 'diagnostic-run-error'
+}
+
+function browserTaskInput(part: any): Record<string, any> | null {
+  if (!isToolPart(part) || toolName(part) !== 'task') return null
+  return part?.state?.input ?? part?.input ?? null
+}
+
+function isBrowserTaskPart(part: any): boolean {
+  const input = browserTaskInput(part)
+  if (!input) return false
+  if (input.subagent_type === 'browser') return true
+  const prompt = typeof input.prompt === 'string' ? input.prompt : ''
+  return /browser session|playwright-cli|subagent_type":"browser|subagent_type: browser/i.test(prompt)
 }
 
 function toolName(part: any): string {
@@ -93,6 +128,67 @@ function toolDetail(name: string, part: any): string {
   return ''
 }
 
+function isBrowserToolName(name: string): boolean {
+  return name.startsWith('playwright_browser_')
+}
+
+function groupHasBrowserTools(group: StepGroup | null): boolean {
+  if (!group) return false
+  return group.items.some(item => {
+    if (isBrowserMismatchPart(item)) return true
+    if (!isToolPart(item)) return false
+    return isBrowserToolName(toolName(item)) || isBrowserTaskPart(item)
+  })
+}
+
+function groupBrowserTaskIds(group: StepGroup | null): string[] {
+  if (!group) return []
+  return group.items
+    .filter(item => isBrowserTaskPart(item))
+    .map(item => String((item as any)._callID || ''))
+    .filter(Boolean)
+}
+
+function isBrowserGroupFocused(message: UIMessage, group: StepGroup | null): boolean {
+  if (!group || !message.runId) return false
+  const browserTaskIds = groupBrowserTaskIds(group)
+  if (props.focusedBrowserTaskId && browserTaskIds.length) {
+    return groupHasBrowserTools(group)
+      && props.focusedBrowserRunId === message.runId
+      && browserTaskIds.includes(props.focusedBrowserTaskId)
+  }
+  return groupHasBrowserTools(group)
+    && props.focusedBrowserRunId === message.runId
+    && props.focusedBrowserMessageId === message.id
+}
+
+function primaryBrowserTaskId(group: StepGroup | null): string | null {
+  if (!group) return null
+  const task = group.items.find(item => isBrowserTaskPart(item))
+  return (task as any)?._callID ?? null
+}
+
+function onFocusBrowserRun(message: UIMessage, group: StepGroup | null, browserTaskId?: string | null) {
+  if (!groupHasBrowserTools(group) || !message.runId) return
+  emit('focusBrowserRun', {
+    runId: message.runId,
+    browserTaskId: browserTaskId ?? primaryBrowserTaskId(group),
+    messageId: message.id,
+  })
+}
+
+function browserEntryLabel(item: any, fallback: string): string {
+  const input = browserTaskInput(item)
+  const description = typeof input?.description === 'string' ? input.description.trim() : ''
+  if (description) return description
+  const prompt = typeof input?.prompt === 'string' ? input.prompt.trim() : ''
+  if (prompt) {
+    const sentence = (prompt.split(/[\n.!?]/)[0] || '').trim()
+    if (sentence) return sentence.length > 48 ? `${sentence.slice(0, 45)}...` : sentence
+  }
+  return fallback
+}
+
 function getPromptForAssistant(msg: UIMessage): string | null {
   const idx = props.messages.findIndex(m => m.id === msg.id)
   if (idx > 0) {
@@ -111,7 +207,7 @@ function getPromptForAssistant(msg: UIMessage): string | null {
 function cleanAssistantText(text: string | undefined, prompt: string | null): string {
   if (!text || typeof text !== 'string') return ''
   if (!prompt) return text
-  
+
   const lines = text.split('\n')
   let firstIdx = -1
   for (let i = 0; i < lines.length; i++) {
@@ -121,13 +217,13 @@ function cleanAssistantText(text: string | undefined, prompt: string | null): st
       break
     }
   }
-  
+
   if (firstIdx !== -1) {
     const targetLine = lines[firstIdx]
     if (!targetLine) return text
-    
+
     const firstLinePure = targetLine.replace(/^[\s#*>-]+/, '').trim().toLowerCase()
-    
+
     const promptLines = prompt.split('\n')
     let firstPromptLine = ''
     for (let i = 0; i < promptLines.length; i++) {
@@ -137,11 +233,11 @@ function cleanAssistantText(text: string | undefined, prompt: string | null): st
         break
       }
     }
-    
+
     if (firstLinePure.length > 5 && firstPromptLine.length > 5) {
       if (
-        firstLinePure === firstPromptLine || 
-        firstLinePure.startsWith(firstPromptLine) || 
+        firstLinePure === firstPromptLine ||
+        firstLinePure.startsWith(firstPromptLine) ||
         firstPromptLine.startsWith(firstLinePure) ||
         firstLinePure.includes(firstPromptLine)
       ) {
@@ -150,7 +246,7 @@ function cleanAssistantText(text: string | undefined, prompt: string | null): st
       }
     }
   }
-  
+
   return text
 }
 
@@ -164,7 +260,7 @@ const stepGroups = computed<StepGroup[]>(() => {
   for (const [msgIdx, msg] of assistantMsgs.entries()) {
     const items: StepGroup['items'] = []
     for (const [partIdx, part] of msg.parts.entries()) {
-      if (isToolPart(part) || (part.type === 'reasoning' && (part as any).text?.trim())) {
+      if (isToolPart(part) || isBrowserMismatchPart(part) || (part.type === 'reasoning' && (part as any).text?.trim())) {
         items.push({ ...part, _partIdx: partIdx })
       }
     }
@@ -200,6 +296,11 @@ const currentPrompt = computed(() => {
 })
 
 function deriveTitleFromItems(items: StepGroup['items']): string {
+  const browserTask = items.find(i => isBrowserTaskPart(i))
+  if (browserTask) {
+    return browserEntryLabel(browserTask, 'Browser subagent')
+  }
+
   const reasoning = items.find(i => i.type === 'reasoning')
   if (reasoning) {
     const text = (reasoning as any).text as string
@@ -208,6 +309,8 @@ function deriveTitleFromItems(items: StepGroup['items']): string {
   }
 
   const tools = items.filter(i => isToolPart(i))
+  const mismatch = items.find(i => isBrowserMismatchPart(i))
+  if (mismatch) return 'Browser session mismatch detected'
   if (tools.length === 0) return 'Thinking'
 
   const first = tools[0]
@@ -364,6 +467,49 @@ const unifiedSegments = computed<UnifiedSegment[]>(() => {
   return out
 })
 
+const derivedBrowserViewEntries = computed<BrowserViewEntry[]>(() => {
+  const entries: BrowserViewEntry[] = []
+  const seen = new Set<string>()
+
+  for (const seg of unifiedSegments.value) {
+    if (seg.kind !== 'assistant' || !seg.group || !seg.message.runId) continue
+    if (!groupHasBrowserTools(seg.group)) continue
+
+    const browserTaskItems = seg.group.items.filter(item => isBrowserTaskPart(item))
+    if (browserTaskItems.length) {
+      for (const item of browserTaskItems) {
+        const browserKey = item._callID || `${seg.message.id}-${item._partIdx}`
+        if (seen.has(browserKey)) continue
+        seen.add(browserKey)
+        entries.push({
+          key: `${seg.message.id}:${browserKey}`,
+          runId: seg.message.runId,
+          browserTaskId: item._callID ?? null,
+          messageId: seg.message.id,
+          label: browserEntryLabel(item, seg.group.title),
+        })
+      }
+      continue
+    }
+
+    entries.push({
+      key: `${seg.message.id}:group`,
+      runId: seg.message.runId,
+      browserTaskId: primaryBrowserTaskId(seg.group),
+      messageId: seg.message.id,
+      label: seg.group.title,
+    })
+  }
+
+  return entries
+})
+
+const browserViewEntries = computed<BrowserViewEntry[]>(() => {
+  if (props.browserViewEntries?.length)
+    return props.browserViewEntries
+  return derivedBrowserViewEntries.value
+})
+
 const showInitialThinking = computed(
   () =>
     (props.status === 'submitted' || props.status === 'streaming')
@@ -380,81 +526,73 @@ const feedEmpty = computed(
 </script>
 
 <template>
-  <div
-    class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15"
-  >
-    <!-- Header -->
-    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/6 dark:border-white/6 shrink-0">
-      <div class="relative">
-        <UIcon name="i-lucide-sparkles" class="size-4" :class="isAgentRunning ? 'text-primary' : 'text-muted/50'" />
-        <span v-if="isAgentRunning" class="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-primary animate-pulse" />
-      </div>
-      <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold uppercase tracking-wider" :class="isAgentRunning ? 'text-default' : 'text-muted'">
-          {{ isAgentRunning ? 'Working' : stepGroups.length ? 'Completed' : 'Activity' }}
-        </span>
-        <span class="text-[10px] text-dimmed truncate">Thinking &amp; chat in one thread</span>
-      </div>
-        <span v-if="stepGroups.length" class="text-[10px] text-dimmed ml-auto shrink-0 text-right leading-tight">
-        {{ stepGroups.length }} {{ stepGroups.length === 1 ? 'step' : 'steps' }}
-        <span class="text-dimmed/70"> · </span>
-        {{ totalActions }} {{ totalActions === 1 ? 'action' : 'actions' }}
+<div
+  class="glass-jelly flex flex-col h-full rounded-2xl overflow-hidden ring-1 ring-fuchsia-500/10 dark:ring-pink-400/15">
+  <!-- Header -->
+  <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/6 dark:border-white/6 shrink-0">
+    <div class="relative">
+      <UIcon name="i-lucide-sparkles" class="size-4" :class="isAgentRunning ? 'text-primary' : 'text-muted/50'" />
+      <span v-if="isAgentRunning" class="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-primary animate-pulse" />
+    </div>
+    <div class="flex flex-col min-w-0">
+      <span class="text-xs font-semibold uppercase tracking-wider"
+        :class="isAgentRunning ? 'text-default' : 'text-muted'">
+        {{ isAgentRunning ? 'Working' : stepGroups.length ? 'Completed' : 'Activity' }}
       </span>
+      <span class="text-[10px] text-dimmed truncate">Thinking &amp; chat in one thread</span>
     </div>
+    <span v-if="stepGroups.length" class="text-[10px] text-dimmed ml-auto shrink-0 text-right leading-tight">
+      {{ stepGroups.length }} {{ stepGroups.length === 1 ? 'step' : 'steps' }}
+      <span class="text-dimmed/70"> · </span>
+      {{ totalActions }} {{ totalActions === 1 ? 'action' : 'actions' }}
+    </span>
+  </div>
 
-    <!-- Current task -->
-    <div v-if="currentPrompt && isAgentRunning" class="px-4 py-2 border-b border-black/6 dark:border-white/6 shrink-0 bg-primary/5">
-      <p class="text-xs text-dimmed truncate">
-        <span class="text-muted font-medium">Task:</span> {{ currentPrompt }}
-      </p>
-    </div>
+  <!-- Current task -->
+  <div v-if="currentPrompt && isAgentRunning"
+    class="px-4 py-2 border-b border-black/6 dark:border-white/6 shrink-0 bg-primary/5">
+    <p class="text-xs text-dimmed truncate">
+      <span class="text-muted font-medium">Task:</span> {{ currentPrompt }}
+    </p>
+  </div>
 
-    <!-- Merged glass feed: user messages, assistant tools/thinking, assistant replies (single scroll) -->
-    <div ref="feedContainer" class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4 unified-feed-scroll">
-      <TransitionGroup name="unified" tag="div" class="space-y-4 max-w-[850px] mx-auto w-full px-4 sm:px-6">
-        <div v-for="seg in unifiedSegments" :key="seg.key">
-          <!-- User prompt -->
-          <div v-if="seg.kind === 'user'" class="flex justify-end">
-            <div
-              class="max-w-[92%] rounded-2xl rounded-br-md px-3.5 py-2.5 shadow-sm"
-              :class="isBetaFeedbackMessage(seg.message)
-                ? 'bg-primary/15 text-default ring-1 ring-primary/25 dark:bg-primary/10'
-                : 'bg-primary text-white'"
-            >
-              <template v-for="(part, i) in seg.message.parts" :key="i">
-                <p v-if="part.type === 'text'" class="text-sm whitespace-pre-wrap leading-relaxed">
-                  {{ (part as any).text }}
-                </p>
-                <div
-                  v-else-if="part.type === 'beta-feedback'"
-                  class="flex items-center gap-2 text-sm leading-relaxed"
-                >
-                  <UIcon
-                    :name="(part as any).sentiment === 'positive' ? 'i-lucide-thumbs-up' : 'i-lucide-thumbs-down'"
-                    class="size-4 shrink-0 text-primary"
-                  />
-                  <span>{{ (part as any).displayText }}</span>
-                </div>
-              </template>
-            </div>
+  <!-- Merged glass feed: user messages, assistant tools/thinking, assistant replies (single scroll) -->
+  <div ref="feedContainer" class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4 unified-feed-scroll">
+    <TransitionGroup name="unified" tag="div" class="space-y-4 max-w-[850px] mx-auto w-full px-4 sm:px-6">
+      <div v-for="seg in unifiedSegments" :key="seg.key">
+        <!-- User prompt -->
+        <div v-if="seg.kind === 'user'" class="flex justify-end">
+          <div class="max-w-[92%] rounded-2xl rounded-br-md px-3.5 py-2.5 shadow-sm" :class="isBetaFeedbackMessage(seg.message)
+            ? 'bg-primary/15 text-default ring-1 ring-primary/25 dark:bg-primary/10'
+            : 'bg-primary text-white'">
+            <template v-for="(part, i) in seg.message.parts" :key="i">
+              <p v-if="part.type === 'text'" class="text-sm whitespace-pre-wrap leading-relaxed">
+                {{ (part as any).text }}
+              </p>
+              <div v-else-if="part.type === 'beta-feedback'" class="flex items-center gap-2 text-sm leading-relaxed">
+                <UIcon :name="(part as any).sentiment === 'positive' ? 'i-lucide-thumbs-up' : 'i-lucide-thumbs-down'"
+                  class="size-4 shrink-0 text-primary" />
+                <span>{{ (part as any).displayText }}</span>
+              </div>
+            </template>
           </div>
+        </div>
 
-          <!-- Assistant: thinking/tools + reply in one block -->
-          <div v-else class="flex justify-start">
-            <div class="max-w-full w-full space-y-2.5">
-              <!-- Tool / reasoning step (same expandable UI as before) -->
-              <div
-                v-if="seg.group"
-                class="rounded-xl overflow-hidden bg-black/2 dark:bg-white/3 ring-1 ring-black/6 dark:ring-white/6"
-              >
-                <button
-                  type="button"
-                  class="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors text-left"
-                  :class="isStepExpanded(seg.group.msgId) ? 'bg-black/2 dark:bg-white/3' : 'hover:bg-black/2 dark:hover:bg-white/2'"
-                  @click="toggleStep(seg.group.msgId)"
-                >
+        <!-- Assistant: thinking/tools + reply in one block -->
+        <div v-else class="flex justify-start">
+          <div class="max-w-full w-full space-y-2.5">
+            <!-- Tool / reasoning step (same expandable UI as before) -->
+            <div v-if="seg.group"
+              class="rounded-xl overflow-hidden bg-black/2 dark:bg-white/3 ring-1 ring-black/6 dark:ring-white/6">
+              <div class="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors" :class="[
+                isStepExpanded(seg.group.msgId) ? 'bg-black/2 dark:bg-white/3' : 'hover:bg-black/2 dark:hover:bg-white/2',
+                isBrowserGroupFocused(seg.message, seg.group) ? 'ring-1 ring-primary/35 bg-primary/8' : '',
+              ]">
+                <button type="button" class="min-w-0 flex flex-1 items-center gap-2.5 text-left"
+                  @click="toggleStep(seg.group.msgId)">
                   <div class="shrink-0">
-                    <span v-if="seg.group.isCompleted" class="size-5 rounded-full bg-success/15 flex items-center justify-center">
+                    <span v-if="seg.group.isCompleted"
+                      class="size-5 rounded-full bg-success/15 flex items-center justify-center">
                       <UIcon name="i-lucide-check" class="size-3 text-success" />
                     </span>
                     <span v-else class="size-5 rounded-full bg-primary/15 flex items-center justify-center">
@@ -463,148 +601,192 @@ const feedEmpty = computed(
                   </div>
                   <div class="flex-1 min-w-0">
                     <span class="text-sm font-medium text-default truncate block">{{ seg.group.title }}</span>
-                    <span class="text-[10px] text-dimmed">{{ seg.group.items.length }} {{ seg.group.items.length === 1 ? 'action' : 'actions' }}</span>
+                    <span class="text-[10px] text-dimmed">
+                      {{ seg.group.items.length }} {{ seg.group.items.length === 1 ? 'action' : 'actions' }}
+                    </span>
                   </div>
-                  <UIcon
-                    name="i-lucide-chevron-down"
+                  <UIcon name="i-lucide-chevron-down"
                     class="size-3.5 text-muted/60 shrink-0 transition-transform duration-200"
-                    :class="isStepExpanded(seg.group.msgId) ? '' : '-rotate-90'"
-                  />
+                    :class="isStepExpanded(seg.group.msgId) ? '' : '-rotate-90'" />
                 </button>
-                <div
-                  class="step-content"
-                  :class="isStepExpanded(seg.group.msgId) ? 'step-content--open' : 'step-content--closed'"
-                >
-                  <div class="pl-5 border-l-2 border-primary/20 ml-5 space-y-px pb-2 pt-1">
-                    <TransitionGroup name="activity" tag="div">
-                      <div
-                        v-for="item in seg.group.items"
-                        :key="`${seg.group.msgId}-${item._partIdx}`"
-                      >
-                        <div
-                          v-if="isToolPart(item)"
-                          class="flex items-center gap-2 py-1.5 px-2 rounded-lg text-xs transition-colors duration-200"
-                          :class="!isToolDone(item) && !isToolError(item) ? 'bg-primary/5' : ''"
-                        >
-                          <UIcon v-if="isToolDone(item)" name="i-lucide-check-circle-2" class="size-3.5 text-success shrink-0" />
-                          <UIcon v-else-if="isToolError(item)" name="i-lucide-x-circle" class="size-3.5 text-error shrink-0" />
-                          <UIcon v-else name="i-lucide-loader-2" class="size-3.5 text-primary animate-spin shrink-0" />
-                          <UIcon :name="toolIcon(toolName(item))" class="size-3 text-muted shrink-0" />
-                          <span class="text-default font-medium whitespace-nowrap">{{ toolLabel(toolName(item)) }}</span>
-                          <span v-if="toolDetail(toolName(item), item)" class="text-dimmed truncate min-w-0">
-                            {{ toolDetail(toolName(item), item) }}
-                          </span>
-                        </div>
-                        <div
-                          v-else-if="item.type === 'reasoning'"
-                          class="text-[11px] text-dimmed italic py-1 px-2"
-                        >
-                          {{ (item as any).text }}
+                <button v-if="groupHasBrowserTools(seg.group) && seg.message.runId" type="button"
+                  class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors" :class="isBrowserGroupFocused(seg.message, seg.group)
+                    ? 'bg-primary text-white'
+                    : 'bg-primary/10 text-primary hover:bg-primary/15'"
+                  @click.stop="onFocusBrowserRun(seg.message, seg.group)">
+                  {{ isBrowserGroupFocused(seg.message, seg.group) ? 'Viewing browser' : 'View browser' }}
+                </button>
+              </div>
+              <div class="step-content"
+                :class="isStepExpanded(seg.group.msgId) ? 'step-content--open' : 'step-content--closed'">
+                <div class="pl-5 border-l-2 border-primary/20 ml-5 space-y-px pb-2 pt-1">
+                  <TransitionGroup name="activity" tag="div">
+                    <div v-for="item in seg.group.items" :key="`${seg.group.msgId}-${item._partIdx}`">
+                      <div v-if="isToolPart(item)"
+                        class="flex items-center gap-2 py-1.5 px-2 rounded-lg text-xs transition-colors duration-200"
+                        :class="!isToolDone(item) && !isToolError(item) ? 'bg-primary/5' : ''">
+                        <UIcon v-if="isToolDone(item)" name="i-lucide-check-circle-2"
+                          class="size-3.5 text-success shrink-0" />
+                        <UIcon v-else-if="isToolError(item)" name="i-lucide-x-circle"
+                          class="size-3.5 text-error shrink-0" />
+                        <UIcon v-else name="i-lucide-loader-2" class="size-3.5 text-primary animate-spin shrink-0" />
+                        <UIcon :name="toolIcon(toolName(item))" class="size-3 text-muted shrink-0" />
+                        <span class="text-default font-medium whitespace-nowrap">{{ toolLabel(toolName(item)) }}</span>
+                        <span v-if="toolDetail(toolName(item), item)" class="text-dimmed truncate min-w-0">
+                          {{ toolDetail(toolName(item), item) }}
+                        </span>
+                      </div>
+                      <div v-else-if="item.type === 'reasoning'" class="text-[11px] text-dimmed italic py-1 px-2">
+                        {{ (item as any).text }}
+                      </div>
+                      <div v-else-if="item.type === 'diagnostic-browser-mismatch'"
+                        class="rounded-lg border border-warning/30 bg-warning/8 px-2.5 py-2 text-[11px] text-warning">
+                        <div class="flex items-start gap-2">
+                          <UIcon name="i-lucide-triangle-alert" class="mt-0.5 size-3.5 shrink-0" />
+                          <div class="min-w-0">
+                            <p class="font-medium text-warning">Browser session mismatch</p>
+                            <p class="mt-0.5 text-warning/90">{{ (item as any).reason }}</p>
+                            <p v-if="(item as any).browserSessionName" class="mt-1 text-warning/80">
+                              Expected session: <span class="font-mono">{{ (item as any).browserSessionName }}</span>
+                            </p>
+                            <p v-if="(item as any).command" class="mt-1 break-all text-warning/80">
+                              Command: <span class="font-mono">{{ (item as any).command }}</span>
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </TransitionGroup>
-                  </div>
+                      <div v-else-if="isRunErrorPart(item)"
+                        class="rounded-lg border border-error/30 bg-error/8 px-2.5 py-2 text-[11px] text-error">
+                        <div class="flex items-start gap-2">
+                          <UIcon name="i-lucide-octagon-alert" class="mt-0.5 size-3.5 shrink-0" />
+                          <div class="min-w-0">
+                            <p class="font-medium text-error">Run failed</p>
+                            <p class="mt-0.5 text-error/90">{{ (item as any).message }}</p>
+                            <p v-if="(item as any).browserTaskLabel" class="mt-1 text-error/80">
+                              Browser task: {{ (item as any).browserTaskLabel }}
+                            </p>
+                            <p v-if="(item as any).browserSessionName" class="mt-1 text-error/80">
+                              Session: <span class="font-mono">{{ (item as any).browserSessionName }}</span>
+                            </p>
+                            <p v-if="typeof (item as any).maxBrowserAgents === 'number' || (item as any).planId"
+                              class="mt-1 text-error/80">
+                              <span v-if="(item as any).planId">Plan: {{ (item as any).planId }}</span>
+                              <span v-if="(item as any).planId && typeof (item as any).maxBrowserAgents === 'number'"> ·
+                              </span>
+                              <span v-if="typeof (item as any).maxBrowserAgents === 'number'">
+                                Browser subagents allowed: {{ (item as any).maxBrowserAgents }}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </TransitionGroup>
                 </div>
               </div>
+            </div>
 
-              <!-- Assistant text reply -->
-              <div
-                v-for="(part, pi) in textPartsForMessage(seg.message)"
-                :key="`${seg.message.id}-t-${pi}`"
-                class="rounded-2xl rounded-bl-md px-3.5 py-2.5 bg-black/2 dark:bg-white/4 ring-1 ring-black/6 dark:ring-white/8 text-sm leading-relaxed text-default shadow-sm markdown-body"
-                v-html="parseMarkdown(cleanAssistantText((part as any).text, getPromptForAssistant(seg.message)))"
-              />
+            <!-- Assistant text reply -->
+            <div v-for="(part, pi) in textPartsForMessage(seg.message)" :key="`${seg.message.id}-t-${pi}`"
+              class="rounded-2xl rounded-bl-md px-3.5 py-2.5 bg-black/2 dark:bg-white/4 ring-1 ring-black/6 dark:ring-white/8 text-sm leading-relaxed text-default shadow-sm markdown-body"
+              v-html="parseMarkdown(cleanAssistantText((part as any).text, getPromptForAssistant(seg.message)))" />
 
-              <!-- In-progress: no tools yet, no text -->
-              <div
-                v-if="(isAgentRunning || status === 'submitted' || status === 'streaming') && isLastAssistantMessage(seg.message) && !seg.group && !hasVisibleAssistantText(seg.message)"
-                class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3 text-dimmed text-sm"
-              >
-                <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin shrink-0" />
-                <span>Thinking&hellip;</span>
-              </div>
+            <!-- In-progress: no tools yet, no text -->
+            <div
+              v-if="(isAgentRunning || status === 'submitted' || status === 'streaming') && isLastAssistantMessage(seg.message) && !seg.group && !hasVisibleAssistantText(seg.message)"
+              class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3 text-dimmed text-sm">
+              <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin shrink-0" />
+              <span>Thinking&hellip;</span>
+            </div>
 
-              <!-- Typing while tools done / running but no final text yet -->
-              <div
-                v-if="showWorkingIndicator && isLastAssistantMessage(seg.message) && seg.group && !hasVisibleAssistantText(seg.message)"
-                class="flex items-center gap-2 py-2 px-3 text-xs text-dimmed"
-              >
-                <span class="size-1.5 rounded-full bg-primary animate-pulse shrink-0" />
-                <span>Writing reply&hellip;</span>
-              </div>
+            <!-- Typing while tools done / running but no final text yet -->
+            <div
+              v-if="showWorkingIndicator && isLastAssistantMessage(seg.message) && seg.group && !hasVisibleAssistantText(seg.message)"
+              class="flex items-center gap-2 py-2 px-3 text-xs text-dimmed">
+              <span class="size-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+              <span>Writing reply&hellip;</span>
             </div>
           </div>
         </div>
-      </TransitionGroup>
-
-      <!-- Thinking before first assistant chunk arrives -->
-      <Transition name="activity">
-        <div
-          v-if="showInitialThinking"
-          class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3"
-        >
-          <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin" />
-          <span class="text-sm text-dimmed">Thinking&hellip;</span>
-        </div>
-      </Transition>
-
-      <!-- Idle empty -->
-      <div
-        v-if="feedEmpty"
-         class="flex flex-col items-center justify-center min-h-45 text-muted gap-3 py-8"
-       >
-         <UIcon name="i-lucide-messages-square" class="size-10 text-muted/25" />
-         <p class="text-xs text-dimmed text-center max-w-55">
-          <template v-if="props.isConnected === false">
-            Connect the agent to run tasks. Conversation and steps will show here together.
-          </template>
-          <template v-else>
-            Send a message — replies and browser steps appear in this thread.
-          </template>
-        </p>
       </div>
+    </TransitionGroup>
 
-      <div v-if="taskFeedbackOpen" class="mt-4 shrink-0 px-0.5">
-        <TaskFeedbackModal
-          v-model:open="taskFeedbackOpen"
-          @vote="onTaskFeedbackVote"
-          @banner-entered="onTaskFeedbackBannerEntered"
-        />
+    <!-- Thinking before first assistant chunk arrives -->
+    <Transition name="activity">
+      <div v-if="showInitialThinking" class="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-black/2 dark:bg-white/3">
+        <UIcon name="i-lucide-loader-2" class="size-4 text-primary animate-spin" />
+        <span class="text-sm text-dimmed">Thinking&hellip;</span>
       </div>
+    </Transition>
+
+    <!-- Idle empty -->
+    <div v-if="feedEmpty" class="flex flex-col items-center justify-center min-h-45 text-muted gap-3 py-8">
+      <UIcon name="i-lucide-messages-square" class="size-10 text-muted/25" />
+      <p class="text-xs text-dimmed text-center max-w-55">
+        <template v-if="props.isConnected === false">
+          Connect the agent to run tasks. Conversation and steps will show here together.
+        </template>
+        <template v-else>
+          Send a message — replies and browser steps appear in this thread.
+        </template>
+      </p>
     </div>
 
-    <!-- Dock Arrow Toggle -->
-    <div class="absolute left-0 top-1/2 -translate-y-1/2 z-[60]">
-      <UButton
-        variant="ghost"
-        color="neutral"
-        class="dock-toggle-btn glass flex items-center justify-center rounded-[4px] w-6.5 h-12 p-0"
-        :title="viewportHidden ? 'Show browser viewport' : 'Hide browser viewport'"
-        @click="emit('toggleViewport')"
-      >
-        <UIcon 
-          :name="viewportHidden ? 'i-lucide-chevron-right' : 'i-lucide-chevron-left'" 
-          class="size-3.5 text-primary"
-        />
-      </UButton>
+    <div v-if="taskFeedbackOpen" class="mt-4 shrink-0 px-0.5">
+      <TaskFeedbackModal v-model:open="taskFeedbackOpen" @vote="onTaskFeedbackVote"
+        @banner-entered="onTaskFeedbackBannerEntered" />
     </div>
   </div>
+
+  <!-- Dock Arrow Toggle -->
+  <div class="absolute left-0 top-1/2 -translate-y-1/2 z-[60]">
+    <UButton variant="ghost" color="neutral"
+      class="dock-toggle-btn glass flex items-center justify-center rounded-[4px] w-6.5 h-12 p-0"
+      :title="viewportHidden ? 'Show browser viewport' : 'Hide browser viewport'" @click="emit('toggleViewport')">
+      <UIcon :name="viewportHidden ? 'i-lucide-chevron-right' : 'i-lucide-chevron-left'"
+        class="size-3.5 text-primary" />
+    </UButton>
+  </div>
+
+  <div v-if="browserViewEntries.length"
+    class="shrink-0 border-t border-black/6 bg-black/2 px-3 py-2.5 dark:border-white/6 dark:bg-white/3">
+    <div class="flex items-center gap-2">
+      <UIcon name="i-lucide-monitor-play" class="size-3.5 text-primary" />
+      <span class="text-[11px] font-medium text-default">Browser subagents</span>
+    </div>
+    <div class="mt-2 flex flex-wrap gap-2">
+      <button v-for="entry in browserViewEntries" :key="entry.key" type="button"
+        class="max-w-full rounded-full px-3 py-1.5 text-[11px] transition-colors" :class="props.focusedBrowserRunId === entry.runId
+          && props.focusedBrowserMessageId === entry.messageId
+          && props.focusedBrowserTaskId === (entry.browserTaskId ?? null)
+          ? 'bg-primary text-white'
+          : 'bg-primary/10 text-primary hover:bg-primary/15'"
+        @click="emit('focusBrowserRun', { runId: entry.runId, browserTaskId: entry.browserTaskId, messageId: entry.messageId })">
+        <span class="block truncate max-w-52">{{ entry.label }}</span>
+      </button>
+    </div>
+  </div>
+</div>
 </template>
 
 <style scoped>
 .unified-enter-active {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .unified-leave-active {
   transition: all 0.2s ease-in;
 }
+
 .unified-enter-from {
   opacity: 0;
   transform: translateY(10px);
 }
+
 .unified-leave-to {
   opacity: 0;
 }
+
 .unified-move {
   transition: transform 0.3s ease;
 }
@@ -646,16 +828,20 @@ const feedEmpty = computed(
 .step-enter-active {
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .step-leave-active {
   transition: all 0.2s ease-in;
 }
+
 .step-enter-from {
   opacity: 0;
   transform: translateY(12px);
 }
+
 .step-leave-to {
   opacity: 0;
 }
+
 .step-move {
   transition: transform 0.3s ease;
 }
@@ -663,16 +849,20 @@ const feedEmpty = computed(
 .activity-enter-active {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .activity-leave-active {
   transition: all 0.15s ease-in;
 }
+
 .activity-enter-from {
   opacity: 0;
   transform: translateY(10px);
 }
+
 .activity-leave-to {
   opacity: 0;
 }
+
 .activity-move {
   transition: transform 0.25s ease;
 }
@@ -681,36 +871,128 @@ const feedEmpty = computed(
   display: grid;
   transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 }
-.step-content > div {
+
+.step-content>div {
   overflow: hidden;
 }
+
 .step-content--open {
   grid-template-rows: 1fr;
   opacity: 1;
 }
+
 .step-content--closed {
   grid-template-rows: 0fr;
   opacity: 0;
 }
 
-.markdown-body :deep(p) { margin-bottom: 0.75em; }
-.markdown-body :deep(p:last-child) { margin-bottom: 0; }
-.markdown-body :deep(a) { color: var(--ui-color-primary-500); text-decoration: underline; text-underline-offset: 2px; }
-.markdown-body :deep(strong) { font-weight: 600; color: inherit; }
-.markdown-body :deep(ul) { list-style-type: disc; padding-left: 1.25em; margin-bottom: 0.75em; margin-top: 0.5em; }
-.markdown-body :deep(ol) { list-style-type: decimal; padding-left: 1.25em; margin-bottom: 0.75em; margin-top: 0.5em; }
-.markdown-body :deep(li) { margin-bottom: 0.25em; }
-.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { font-weight: 600; margin-top: 1.25em; margin-bottom: 0.5em; color: inherit; }
-.markdown-body :deep(h1) { font-size: 1.3em; }
-.markdown-body :deep(h2) { font-size: 1.15em; }
-.markdown-body :deep(h3) { font-size: 1.05em; }
-.markdown-body :deep(code) { font-family: monospace; font-size: 0.9em; background-color: rgba(128, 128, 128, 0.15); padding: 0.15em 0.3em; border-radius: 0.25em; }
-.markdown-body :deep(pre) { background-color: rgba(0, 0, 0, 0.15); padding: 1em; border-radius: 0.5em; overflow-x: auto; margin-bottom: 0.75em; margin-top: 0.5em; border: 1px solid rgba(128, 128, 128, 0.15); }
-.markdown-body :deep(pre code) { background-color: transparent; padding: 0; }
-.markdown-body :deep(blockquote) { border-left: 3px solid rgba(128, 128, 128, 0.3); padding-left: 1em; color: inherit; opacity: 0.8; margin-bottom: 0.75em; margin-top: 0.5em; }
-.markdown-body :deep(table) { width: 100%; border-collapse: collapse; margin-bottom: 0.75em; margin-top: 0.5em; font-size: 0.9em; }
-.markdown-body :deep(th), .markdown-body :deep(td) { border: 1px solid rgba(128, 128, 128, 0.2); padding: 0.5em 0.75em; text-align: left; }
-.markdown-body :deep(th) { background-color: rgba(128, 128, 128, 0.1); font-weight: 600; }
+.markdown-body :deep(p) {
+  margin-bottom: 0.75em;
+}
 
+.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
 
+.markdown-body :deep(a) {
+  color: var(--ui-color-primary-500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-body :deep(strong) {
+  font-weight: 600;
+  color: inherit;
+}
+
+.markdown-body :deep(ul) {
+  list-style-type: disc;
+  padding-left: 1.25em;
+  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+}
+
+.markdown-body :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+}
+
+.markdown-body :deep(li) {
+  margin-bottom: 0.25em;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3) {
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  color: inherit;
+}
+
+.markdown-body :deep(h1) {
+  font-size: 1.3em;
+}
+
+.markdown-body :deep(h2) {
+  font-size: 1.15em;
+}
+
+.markdown-body :deep(h3) {
+  font-size: 1.05em;
+}
+
+.markdown-body :deep(code) {
+  font-family: monospace;
+  font-size: 0.9em;
+  background-color: rgba(128, 128, 128, 0.15);
+  padding: 0.15em 0.3em;
+  border-radius: 0.25em;
+}
+
+.markdown-body :deep(pre) {
+  background-color: rgba(0, 0, 0, 0.15);
+  padding: 1em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  border: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.markdown-body :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 3px solid rgba(128, 128, 128, 0.3);
+  padding-left: 1em;
+  color: inherit;
+  opacity: 0.8;
+  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  font-size: 0.9em;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background-color: rgba(128, 128, 128, 0.1);
+  font-weight: 600;
+}
 </style>

@@ -41,7 +41,7 @@ export function useSettings() {
     username: _username as Ref<string>,
     profilePicture: _profilePicture as Ref<string>,
     isLoggedIn: _isLoggedIn as Ref<boolean>,
-    /** When true (and signed in), client reports coarse location to the agent server on an interval */
+    /** When true (and signed in), client reports approximate location to the agent server on an interval and before new runs */
     shareLocationWithBackend: _shareLocationWithBackend as Ref<boolean>,
   }
 }

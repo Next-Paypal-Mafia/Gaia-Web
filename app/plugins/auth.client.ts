@@ -1,8 +1,9 @@
 export default defineNuxtPlugin(() => {
   const supabase = useSupabaseClient()
   const settings = useSettings()
+  const currentPlan = useCurrentPlan()
 
-  function syncFromUser(user: { user_metadata?: Record<string, unknown>; email?: string } | null) {
+  async function syncFromUser(user: { id?: string; user_metadata?: Record<string, unknown>; email?: string } | null) {
     if (user) {
       const meta = user.user_metadata || {}
       const name =
@@ -15,16 +16,18 @@ export default defineNuxtPlugin(() => {
       settings.username.value = name
       settings.profilePicture.value = avatar
       settings.isLoggedIn.value = true
+      await currentPlan.refresh(user.id || null)
     } else {
       settings.username.value = 'User'
       settings.profilePicture.value = ''
       settings.isLoggedIn.value = false
+      await currentPlan.refresh(null)
     }
   }
 
   supabase.auth.onAuthStateChange((_event, session) => {
-    syncFromUser(session?.user ?? null)
+    void syncFromUser(session?.user ?? null)
   })
 
-  supabase.auth.getUser().then(({ data: { user } }) => syncFromUser(user))
+  supabase.auth.getUser().then(({ data: { user } }) => void syncFromUser(user))
 })

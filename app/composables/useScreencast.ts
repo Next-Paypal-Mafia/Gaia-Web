@@ -16,7 +16,7 @@ export function useScreencast() {
     stop()
 
     const wsBase = _httpToWs(baseUrl.replace(/\/$/, ''))
-    const url = new URL(`${wsBase}/sessions/${sessionId}/screen`)
+    const url = new URL(`${wsBase}/sessions/${sessionId}/viewport/screen`)
     if (token) url.searchParams.set('token', token)
 
     const ws = new WebSocket(url.toString())
@@ -31,13 +31,19 @@ export function useScreencast() {
       try {
         const msg = JSON.parse(event.data as string) as {
           type: string
-          data: string
+          data?: string
           timestamp: number
+          cached?: boolean
         }
 
         if (msg.type === 'frame' && msg.data) {
           currentFrame.value = `data:image/jpeg;base64,${msg.data}`
-        } else {
+        }
+        else if (msg.type === 'viewportPending') {
+          // Screencaster had no cached frame for the new tab yet; avoid showing the previous target.
+          currentFrame.value = null
+        }
+        else {
           console.log('[useScreencast] Non-frame message:', msg.type)
         }
       }
@@ -58,6 +64,11 @@ export function useScreencast() {
       currentFrame.value = null
       _ws = null
     }
+  }
+
+  /** Drop the last frame so the UI does not show a stale tab while CDP switches targets. */
+  function clearFrame(): void {
+    currentFrame.value = null
   }
 
   function stop(): void {
@@ -81,5 +92,6 @@ export function useScreencast() {
     pageBackgroundColor: readonly(pageBackgroundColor),
     start,
     stop,
+    clearFrame,
   }
 }
