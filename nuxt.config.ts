@@ -2,6 +2,11 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   ssr: false,
   devtools: { enabled: true },
+  vite: {
+    optimizeDeps: {
+      include: ["@vue/devtools-core", "@vue/devtools-kit", "marked"],
+    },
+  },
 
   modules: ["@nuxt/ui", "@nuxtjs/supabase", "@nuxtjs/i18n"],
 

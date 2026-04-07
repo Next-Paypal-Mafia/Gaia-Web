@@ -1,4 +1,8 @@
--- Run this in the Supabase SQL Editor to create the secure backend RPC
+-- Deprecated for current frontend work.
+--
+-- JellyByte-Web now manages external-site credentials through JellyByte-Server
+-- credential routes instead of calling Supabase Vault RPCs directly from the
+-- browser. Keep this file only as historical reference for the old path.
 
 CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 

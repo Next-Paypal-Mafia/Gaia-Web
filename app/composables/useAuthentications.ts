@@ -1,265 +1,313 @@
+interface CredentialSummaryResponse {
+  site: string
+  username: string
+  updatedAt: string
+}
+
 export interface SavedCredential {
   id: string
-  /** Shown on the tile (e.g. "GitHub") */
   name: string
-  /** Login URL or app URL */
   url: string
   username: string
-  password?: string
-  password_secret_id?: string
   updatedAt: number
 }
 
-const STORAGE_KEY = 'jellybyte:authentications'
+function normalizeCredentialSite(input: string): string {
+  const trimmed = input.trim().toLowerCase()
+  const normalized = trimmed.includes("://") ? trimmed : `https://${trimmed}`
+  return new URL(normalized).hostname.replace(/^www\./, "")
+}
 
-function loadJSON(): SavedCredential[] {
-  if (!import.meta.client) return []
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as SavedCredential[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+function mapCredentialSummary(item: CredentialSummaryResponse): SavedCredential {
+  return {
+    id: item.site,
+    name: hostnameLabel(item.site),
+    url: item.site,
+    username: item.username,
+    updatedAt: Date.parse(item.updatedAt) || Date.now(),
   }
-}
-
-function saveJSON(items: SavedCredential[]) {
-  if (!import.meta.client) return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-}
-
-function clearJSON() {
-  if (!import.meta.client) return
-  localStorage.removeItem(STORAGE_KEY)
-}
-
-/** Normalize DB value: jsonb array or single jsonb array payload */
-function normalizeCredentials(raw: unknown): SavedCredential[] {
-  if (!raw) return []
-  const arr = Array.isArray(raw) ? raw : []
-  const out: SavedCredential[] = []
-  for (const item of arr) {
-    if (!item || typeof item !== 'object') continue
-    const o = item as Record<string, unknown>
-    const id = typeof o.id === 'string' ? o.id : `auth-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-    const name = typeof o.name === 'string' ? o.name : ''
-    const url = typeof o.url === 'string' ? o.url : ''
-    const username = typeof o.username === 'string' ? o.username : ''
-    const password = typeof o.password === 'string' ? o.password : ''
-    const password_secret_id = typeof o.password_secret_id === 'string' ? o.password_secret_id : undefined
-    const updatedAt = typeof o.updatedAt === 'number' ? o.updatedAt : Date.now()
-    if (!url && !name) continue
-    out.push({ id, name, url, username, password, password_secret_id, updatedAt })
-  }
-  return out
 }
 
 let _credentials: Ref<SavedCredential[]> | null = null
-let _syncState: Ref<'idle' | 'loading' | 'saving' | 'error'> | null = null
+let _syncState: Ref<"idle" | "loading" | "saving" | "error"> | null = null
 let _syncError: Ref<string | null> | null = null
-let _suppressPersist = false
-let _saveTimer: ReturnType<typeof setTimeout> | null = null
 
 export function useAuthentications() {
   if (!_credentials) {
     _credentials = ref<SavedCredential[]>([])
-    _syncState = ref<'idle' | 'loading' | 'saving' | 'error'>('idle')
+    _syncState = ref<"idle" | "loading" | "saving" | "error">("idle")
     _syncError = ref<string | null>(null)
 
     if (import.meta.client) {
+      const config = useRuntimeConfig()
       const supabase = useSupabaseClient()
       const settings = useSettings()
 
-      async function saveToSupabase(list: SavedCredential[]) {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        _syncState!.value = 'saving'
-        _syncError!.value = null
-        const payload = list.map(c => {
-          const out: Record<string, any> = {
-            id: c.id,
-            name: c.name,
-            url: c.url,
-            username: c.username,
-            updatedAt: c.updatedAt,
-          }
-          if (c.password) out.password = c.password
-          if (c.password_secret_id) out.password_secret_id = c.password_secret_id
-          return out
-        })
-        
-        // We use an RPC call so the Postgres backend can securely move new passwords into Vault.
-        // @ts-ignore - 'sync_vault_credentials' isn't in generated Database types yet
-        const { error } = await (supabase.rpc as any)('sync_vault_credentials', { payload })
-        if (error) {
-          console.error('[useAuthentications] Supabase save failed:', error)
-          _syncState!.value = 'error'
-          _syncError!.value = error.message
-        } else {
-          _syncState!.value = 'idle'
-        }
+      async function getAccessToken(): Promise<string | null> {
+        const { data: { session } } = await supabase.auth.getSession()
+        return session?.access_token ?? null
       }
 
-      function scheduleRemoteSave() {
-        if (_suppressPersist || !settings.isLoggedIn.value) return
-        if (_saveTimer) clearTimeout(_saveTimer)
-        _saveTimer = setTimeout(() => {
-          _saveTimer = null
-          void saveToSupabase(_credentials!.value)
-        }, 450)
+      async function requestCredentialsApi<T>(
+        path: string,
+        init: RequestInit & { body?: unknown } = {},
+      ): Promise<T> {
+        const apiBase = String(config.public.serverUrl || "").replace(/\/$/, "")
+        if (!apiBase) {
+          throw new Error("Server URL is not configured")
+        }
+
+        const token = await getAccessToken()
+        if (!token) {
+          throw new Error("Authenticated session required")
+        }
+
+        const headers = new Headers(init.headers)
+        headers.set("Authorization", `Bearer ${token}`)
+        if (init.body !== undefined) {
+          headers.set("Content-Type", "application/json")
+        }
+
+        const res = await fetch(`${apiBase}${path}`, {
+          ...init,
+          headers,
+          body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+          credentials: "omit",
+        })
+
+        if (!res.ok) {
+          const message = await res.text()
+          throw new Error(message || `Credential request failed with ${res.status}`)
+        }
+
+        if (res.status === 204) {
+          return undefined as T
+        }
+
+        return await res.json() as T
       }
 
       async function hydrate() {
         if (!settings.isLoggedIn.value) {
-          _suppressPersist = true
-          _credentials!.value = loadJSON()
-          _suppressPersist = false
-          _syncState!.value = 'idle'
+          _credentials!.value = []
+          _syncState!.value = "idle"
           _syncError!.value = null
           return
         }
 
-        _syncState!.value = 'loading'
+        _syncState!.value = "loading"
         _syncError!.value = null
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          _credentials!.value = loadJSON()
-          _syncState!.value = 'idle'
-          return
+
+        try {
+          const data = await requestCredentialsApi<CredentialSummaryResponse[]>("/api/credentials")
+          _credentials!.value = data
+            .map(mapCredentialSummary)
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+          _syncState!.value = "idle"
         }
-
-        const { data, error } = await supabase
-          .from('users')
-          .select('credentials')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (error) {
-          console.error('[useAuthentications] Supabase fetch failed:', error)
-          _syncState!.value = 'error'
-          _syncError!.value = error.message
-          _credentials!.value = loadJSON()
-          return
+        catch (error) {
+          console.error("[useAuthentications] Backend fetch failed:", error)
+          _credentials!.value = []
+          _syncState!.value = "error"
+          _syncError!.value = error instanceof Error ? error.message : String(error)
         }
-
-        let list = normalizeCredentials((data as any)?.credentials)
-
-        // Migrate existing local-only data when cloud is empty
-        if (list.length === 0) {
-          const local = loadJSON()
-          if (local.length > 0) {
-            list = local
-            _suppressPersist = true
-            _credentials!.value = [...list]
-            _suppressPersist = false
-            await saveToSupabase(list)
-            clearJSON()
-            _syncState!.value = 'idle'
-            return
-          }
-        }
-
-        _suppressPersist = true
-        _credentials!.value = list
-        _suppressPersist = false
-        clearJSON()
-        _syncState!.value = 'idle'
       }
 
       watch(
         () => settings.isLoggedIn.value,
-        async (loggedIn) => {
-          if (!loggedIn) {
-            if (_saveTimer) {
-              clearTimeout(_saveTimer)
-              _saveTimer = null
-            }
-            _suppressPersist = true
-            _credentials!.value = loadJSON()
-            _suppressPersist = false
-            _syncState!.value = 'idle'
-            _syncError!.value = null
-            return
-          }
+        async () => {
           await hydrate()
         },
         { immediate: true },
       )
-
-      watch(
-        _credentials,
-        (list) => {
-          if (_suppressPersist) return
-          if (settings.isLoggedIn.value) {
-            scheduleRemoteSave()
-          } else {
-            saveJSON(list)
-          }
-        },
-        { deep: true },
-      )
-
     }
   }
 
+  const config = useRuntimeConfig()
+  const supabase = useSupabaseClient()
   const credentials = _credentials as Ref<SavedCredential[]>
-  const syncState = _syncState as Ref<'idle' | 'loading' | 'saving' | 'error'>
+  const syncState = _syncState as Ref<"idle" | "loading" | "saving" | "error">
   const syncError = _syncError as Ref<string | null>
 
-  function addCredential(entry: Omit<SavedCredential, 'id' | 'updatedAt'>) {
-    const id = `auth-${Date.now()}`
-    credentials.value = [
-      {
-        id,
-        ...entry,
-        updatedAt: Date.now(),
-      },
-      ...credentials.value,
-    ]
-    return id
+  async function getAccessToken(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
   }
 
-  function updateCredential(id: string, patch: Partial<Omit<SavedCredential, 'id'>>) {
-    const idx = credentials.value.findIndex(c => c.id === id)
-    if (idx === -1) return
-    const next = { ...credentials.value[idx], ...patch, updatedAt: Date.now() } as SavedCredential
-    credentials.value = credentials.value.map(c => (c.id === id ? next : c))
+  async function requestCredentialsApi<T>(
+    path: string,
+    init: RequestInit & { body?: unknown } = {},
+  ): Promise<T> {
+    const apiBase = String(config.public.serverUrl || "").replace(/\/$/, "")
+    if (!apiBase) {
+      throw new Error("Server URL is not configured")
+    }
+
+    const token = await getAccessToken()
+    if (!token) {
+      throw new Error("Authenticated session required")
+    }
+
+    const headers = new Headers(init.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    if (init.body !== undefined) {
+      headers.set("Content-Type", "application/json")
+    }
+
+    const res = await fetch(`${apiBase}${path}`, {
+      ...init,
+      headers,
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      credentials: "omit",
+    })
+
+    if (!res.ok) {
+      const message = await res.text()
+      throw new Error(message || `Credential request failed with ${res.status}`)
+    }
+
+    if (res.status === 204) {
+      return undefined as T
+    }
+
+    return await res.json() as T
   }
 
-  function removeCredential(id: string) {
-    credentials.value = credentials.value.filter(c => c.id !== id)
+  async function refreshCredentials() {
+    syncState.value = "loading"
+    syncError.value = null
+
+    try {
+      const data = await requestCredentialsApi<CredentialSummaryResponse[]>("/api/credentials")
+      credentials.value = data
+        .map(mapCredentialSummary)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+      syncState.value = "idle"
+    }
+    catch (error) {
+      syncState.value = "error"
+      syncError.value = error instanceof Error ? error.message : String(error)
+      throw error
+    }
+  }
+
+  async function addCredential(entry: {
+    name: string
+    url: string
+    username: string
+    password: string
+  }) {
+    syncState.value = "saving"
+    syncError.value = null
+
+    try {
+      const site = normalizeCredentialSite(entry.url)
+      await requestCredentialsApi(`/api/credentials/${encodeURIComponent(site)}`, {
+        method: "POST",
+        body: {
+          username: entry.username.trim(),
+          password: entry.password,
+        },
+      })
+      await refreshCredentials()
+    }
+    catch (error) {
+      syncState.value = "error"
+      syncError.value = error instanceof Error ? error.message : String(error)
+      throw error
+    }
+  }
+
+  async function updateCredential(
+    id: string,
+    patch: {
+      name: string
+      url: string
+      username: string
+      password: string
+    },
+  ) {
+    syncState.value = "saving"
+    syncError.value = null
+
+    try {
+      const nextSite = normalizeCredentialSite(patch.url)
+      await requestCredentialsApi(`/api/credentials/${encodeURIComponent(nextSite)}`, {
+        method: "POST",
+        body: {
+          username: patch.username.trim(),
+          password: patch.password,
+        },
+      })
+
+      if (id !== nextSite) {
+        await requestCredentialsApi(`/api/credentials/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        })
+      }
+
+      await refreshCredentials()
+    }
+    catch (error) {
+      syncState.value = "error"
+      syncError.value = error instanceof Error ? error.message : String(error)
+      throw error
+    }
+  }
+
+  async function removeCredential(id: string) {
+    syncState.value = "saving"
+    syncError.value = null
+
+    try {
+      await requestCredentialsApi(`/api/credentials/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      })
+      await refreshCredentials()
+    }
+    catch (error) {
+      syncState.value = "error"
+      syncError.value = error instanceof Error ? error.message : String(error)
+      throw error
+    }
   }
 
   return {
     credentials,
     syncState,
     syncError,
+    refreshCredentials,
     addCredential,
     updateCredential,
     removeCredential,
   }
 }
 
-/** Favicon URL for a site (Google's service). */
 export function credentialFaviconUrl(url: string): string | null {
   if (!url?.trim()) return null
   try {
-    const normalized = url.includes('://') ? url : `https://${url}`
+    const normalized = url.includes("://") ? url : `https://${url}`
     const host = new URL(normalized).hostname
     if (!host) return null
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`
-  } catch {
+  }
+  catch {
     return null
   }
 }
 
 export function hostnameLabel(url: string): string {
-  if (!url?.trim()) return 'Website'
+  if (!url?.trim()) return "Website"
   try {
-    const normalized = url.includes('://') ? url : `https://${url}`
-    return new URL(normalized).hostname.replace(/^www\./, '') || 'Website'
-  } catch {
-    return 'Website'
+    const normalized = url.includes("://") ? url : `https://${url}`
+    const host = new URL(normalized).hostname.replace(/^www\./, "")
+    if (!host) return "Website"
+    return host
+      .split(".")[0]
+      ?.replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, ch => ch.toUpperCase()) || host
+  }
+  catch {
+    return url
   }
 }

@@ -1,61 +1,32 @@
-# Supabase credentials (`public.users`)
+# External credentials via JellyByte-Server
 
-The app stores an array of credential objects in `public.users.credentials` as **JSON** (use a single `jsonb` column whose value is a JSON array, e.g. `[{ "id": "...", "name": "...", ... }]`).
+The web app no longer writes external-site credentials directly to `public.users.credentials`.
 
-If your column is typed as `jsonb[]` (Postgres array of jsonb) instead of `jsonb`, adjust the schema or the client payload to match PostgREST expectations.
+## Current flow
 
-## Row creation
+- Supabase Auth remains the identity layer for JellyByte accounts
+- `JellyByte-Web` sends the signed-in user's Bearer token to `JellyByte-Server`
+- `JellyByte-Server` owns `GET /api/credentials`, `POST /api/credentials/:site`, and `DELETE /api/credentials/:site`
+- plaintext passwords are only sent from the browser during save/replace
+- saved plaintext passwords are never fetched back into the UI afterward
 
-The client **upserts** `{ id: auth.uid(), credentials: [...] }`. The row is created on first save if it does not exist.
+## Public API shape
 
-Optional: create the row when a user signs up:
+`GET /api/credentials` returns safe metadata only:
 
-```sql
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.users (id, credentials)
-  values (new.id, '[]'::jsonb);
-  return new;
-end;
-$$ language plpgsql security definer;
-
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+```json
+[
+  {
+    "site": "trip.com",
+    "username": "user@example.com",
+    "updatedAt": "2026-04-02T12:00:00.000Z"
+  }
+]
 ```
 
-## Row Level Security
+`POST /api/credentials/:site` is an upsert and also returns metadata only.
 
-Enable RLS and allow users to manage only their own row:
+## Deprecated direct-Supabase path
 
-```sql
-alter table public.users enable row level security;
-
-create policy "Users read own row"
-  on public.users for select
-  using (auth.uid() = id);
-
-create policy "Users insert own row"
-  on public.users for insert
-  with check (auth.uid() = id);
-
-create policy "Users update own row"
-  on public.users for update
-  using (auth.uid() = id)
-  with check (auth.uid() = id);
-```
-
-Adjust policy names if they already exist in your project.
-
-## JSON shape per item
-
-Each element in the `credentials` array matches `SavedCredential` in `app/composables/useAuthentications.ts`:
-
-| Field       | Type   | Description        |
-|------------|--------|--------------------|
-| `id`       | string | Stable client id   |
-| `name`     | string | Tile label         |
-| `url`      | string | Login / app URL    |
-| `username` | string |                    |
-| `password` | string | Stored as plain JSON; consider app-level encryption or Supabase Vault for production |
+Older notes in this repo referenced `public.users.credentials`, `sync_vault_credentials`, and `get_decrypted_password`.
+That path is deprecated for agent-driven external-site credentials and should not be used for new frontend work.

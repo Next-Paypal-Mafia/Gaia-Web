@@ -26,6 +26,7 @@ const agent = useOpenCodeAgent()
 const apiVersion = useApiVersion()
 const usage = useUsage()
 const settings = useSettings()
+const wf = useWorkflows()
 const { t } = useI18n()
 
 const limitReachedOpen = ref(false)
@@ -72,8 +73,6 @@ watch(
   () => [...dismissedTaskFeedbackAssistantIds.value].sort().join('\0'),
   () => schedulePersistChats(),
 )
-
-const wf = useWorkflows()
 
 /** Full sidebar vs icon rail (default: rail for wider browser viewport) */
 const sidebarExpanded = ref(false)
@@ -289,12 +288,12 @@ function onLandingSend(text?: string) {
 
 // Auto-show viewport when browser tools are seen
 watch(() => agent.messages.value, (msgs) => {
-  const hasBrowserTool = msgs.some(m => 
-    m.role === 'assistant' && 
-    m.parts.some(p => 
-      typeof p.type === 'string' && 
-      p.type.startsWith('tool-') && 
-      !p.type.includes('websearch') && 
+  const hasBrowserTool = msgs.some(m =>
+    m.role === 'assistant' &&
+    m.parts.some(p =>
+      typeof p.type === 'string' &&
+      p.type.startsWith('tool-') &&
+      !p.type.includes('websearch') &&
       !p.type.includes('Exa')
     )
   )
@@ -567,215 +566,202 @@ function onSendInstruction(text: string) {
 </script>
 
 <template>
-<div class="h-screen flex bg-default overflow-hidden relative jelly-root">
-  <!-- Jellyfish ambient glow orbs -->
-  <div class="jelly-orbs">
-    <div class="jelly-orb jelly-orb--1" />
-    <div class="jelly-orb jelly-orb--2" />
-    <div class="jelly-orb jelly-orb--3" />
-  </div>
-  <!-- Left side panel -->
-  <SidePanel :expanded="sidebarExpanded" :chat-history="chatsWithMessages"
-    :active-chat-id="activeChatId" :active-view="activeView" :active-workflow-id="activeWorkflowId"
-    :pinned-workflows="wf.pinnedWorkflows.value" @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true"
-    @new-chat="onNewChat" @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
-    @rename-chat="onRenameChat" @delete-chat="onDeleteChat" @toggle-pin-workflow="onTogglePinWorkflow"
-    @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
+  <div class="h-screen flex bg-default overflow-hidden relative jelly-root">
+    <!-- Jellyfish ambient glow orbs -->
+    <div class="jelly-orbs">
+      <div class="jelly-orb jelly-orb--1" />
+      <div class="jelly-orb jelly-orb--2" />
+      <div class="jelly-orb jelly-orb--3" />
+    </div>
+    <!-- Left side panel -->
+    <SidePanel :expanded="sidebarExpanded" :chat-history="chatsWithMessages" :active-chat-id="activeChatId"
+      :active-view="activeView" :active-workflow-id="activeWorkflowId" :pinned-workflows="wf.pinnedWorkflows.value"
+      @toggle="sidebarExpanded = false" @expand="sidebarExpanded = true" @new-chat="onNewChat"
+      @select-chat="onSelectChat" @select-workflow="onSelectWorkflow" @select-view="onSelectView"
+      @rename-chat="onRenameChat" @delete-chat="onDeleteChat" @toggle-pin-workflow="onTogglePinWorkflow"
+      @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
 
-  <!-- Right side -->
-  <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
-    <!-- ═══ Landing / Welcome page ═══ -->
-    <Transition name="landing-leave">
-      <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
-        <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
-          <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
-            <UIcon name="i-lucide-earth" class="size-8 text-primary" />
-          </div>
-          <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">{{ t('welcome') }}</h1>
-          <p class="text-sm text-muted mb-8">{{ t('welcome_desc') }}</p>
+    <!-- Right side -->
+    <div class="flex-1 flex flex-col min-w-0 gap-2 py-2 overflow-hidden">
+      <!-- ═══ Landing / Welcome page ═══ -->
+      <Transition name="landing-leave">
+        <div v-if="showLanding" class="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
+          <div class="flex flex-col items-center max-w-2xl w-full glass rounded-3xl px-8 py-10">
+            <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+              <UIcon name="i-lucide-earth" class="size-8 text-primary" />
+            </div>
+            <h1 class="text-2xl font-semibold text-default mb-1.5 tracking-tight">{{ t('welcome') }}</h1>
+            <p class="text-sm text-muted mb-8">{{ t('welcome_desc') }}</p>
 
-          <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
-            <div class="relative group">
-              <UTextarea v-model="landingInput"
-                :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
-                :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
-                class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
-              <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
-                class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
-                <UIcon name="i-lucide-arrow-up" class="size-4" />
+            <form class="w-full max-w-lg" @submit.prevent="onLandingSend()">
+              <div class="relative group">
+                <UTextarea v-model="landingInput"
+                  :placeholder="taskFeedbackOpen && !taskFeedbackBannerEntered ? 'Preparing quick feedback…' : surveyLocksChat ? 'Answer the feedback in the chat panel to continue...' : agent.isAgentRunning.value ? (isViewingStreamingChat ? 'Wait for the reply or stop the agent...' : 'Agent is busy in another chat...') : 'Ask jellybyte to do something...'"
+                  :disabled="agent.isAgentRunning.value || surveyLocksChat" autoresize :rows="2" :maxrows="5" size="lg"
+                  class="w-full landing-input landing-glass-input" @keydown.enter.exact.prevent="onLandingSend()" />
+                <button type="submit" :disabled="!landingInput.trim() || agent.isAgentRunning.value || surveyLocksChat"
+                  class="absolute bottom-3 right-3 size-9 rounded-full bg-primary text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/90 active:scale-95">
+                  <UIcon name="i-lucide-arrow-up" class="size-4" />
+                </button>
+              </div>
+            </form>
+
+            <div class="flex flex-wrap justify-center gap-2 mt-6">
+              <button v-for="s in suggestions" :key="s"
+                class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
+                :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
+                @click="onLandingSend(s)">
+                {{ s }}
               </button>
             </div>
-          </form>
 
-          <div class="flex flex-wrap justify-center gap-2 mt-6">
-            <button v-for="s in suggestions" :key="s"
-              class="px-4 py-2 rounded-full text-xs font-medium text-muted hover:text-default bg-default/60 dark:bg-white/4 hover:bg-default/80 dark:hover:bg-white/8 transition-all border border-default/40 dark:border-white/8 hover:border-primary/30 active:scale-[0.97]"
-              :class="{ 'pointer-events-none opacity-50': agent.isAgentRunning.value || surveyLocksChat }"
-              @click="onLandingSend(s)">
-              {{ s }}
-            </button>
+            <p class="text-[11px] text-dimmed mt-8">
+              jellybyte can make mistakes. Verify important information.
+            </p>
           </div>
-
-          <p class="text-[11px] text-dimmed mt-8">
-            jellybyte can make mistakes. Verify important information.
-          </p>
         </div>
-      </div>
-    </Transition>
+      </Transition>
 
-    <!-- ═══ Browser + Chat / Other panels ═══ -->
-    <template v-if="!showLanding">
-      <!-- Main content area -->
-      <div class="flex-1 min-h-0 mx-2 relative overflow-hidden flex flex-col">
-        <!-- Browser view: viewport + agent (chat lives in agent panel as glass carousel); input fixed below -->
-        <Transition name="browser-reveal">
-          <div v-show="isBrowserView" class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10">
-            <div class="flex-1 min-h-0 relative overflow-hidden">
-            <div class="absolute inset-0 browser-grid" :class="[
-                sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
-                tilingAnimActive ? 'browser-grid--tiling' : '',
-                viewportHidden ? 'browser-grid--viewport-hidden' : '',
-              ]">
-                <!-- Viewport tile -->
-                <div class="browser-grid__viewport min-h-0">
-                  <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
-                    <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
-                      :is-connected="screencast.isStreaming.value" :is-loading="false"
-                      :page-background-color="screencast.pageBackgroundColor.value" />
-                    <div v-if="liveBrowserMismatch"
-                      class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center">
-                      <UIcon name="i-lucide-monitor-smartphone" class="size-10 text-white/85 shrink-0" />
-                      <p class="text-sm font-medium text-white/95 max-w-[18rem] leading-snug">
-                        Live browser is tied to
-                        <span class="text-primary font-semibold">{{ streamingChatTitle }}</span>
-                        — not this thread.
-                      </p>
-                      <p class="text-xs text-white/65 max-w-[19rem] leading-relaxed">
-                        The sidebar can show a different chat than the one driving the agent. Open the live thread to
-                        align the transcript with what you see here.
-                      </p>
-                      <UButton color="primary" class="mt-1" @click="openLiveBrowserChat">
-                        Open live chat
-                      </UButton>
-                    </div>
-                    <div class="absolute bottom-2.5 left-2.5">
-                      <span v-if="screencast.isStreaming.value"
-                        class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full">
-                        <span class="size-1.5 rounded-full bg-success animate-pulse" />
-                        Live
-                      </span>
+      <!-- ═══ Browser + Chat / Other panels ═══ -->
+      <template v-if="!showLanding">
+        <!-- Main content area -->
+        <div class="flex-1 min-h-0 mx-2 relative overflow-hidden flex flex-col">
+          <!-- Browser view: viewport + agent (chat lives in agent panel as glass carousel); input fixed below -->
+          <Transition name="browser-reveal">
+            <div v-show="isBrowserView" class="absolute inset-0 flex flex-col gap-2 min-h-0 z-10">
+              <div class="flex-1 min-h-0 relative overflow-hidden">
+                <div class="absolute inset-0 browser-grid" :class="[
+                  sidebarExpanded ? 'browser-grid--expanded' : 'browser-grid--rail',
+                  tilingAnimActive ? 'browser-grid--tiling' : '',
+                  viewportHidden ? 'browser-grid--viewport-hidden' : '',
+                ]">
+                  <!-- Viewport tile -->
+                  <div class="browser-grid__viewport min-h-0">
+                    <div class="w-full h-full min-h-0 rounded-2xl overflow-hidden relative flex flex-col">
+                      <BrowserViewport class="flex-1 min-h-0" :frame="screencast.currentFrame.value"
+                        :is-connected="screencast.isStreaming.value" :is-loading="false"
+                        :page-background-color="screencast.pageBackgroundColor.value" />
+                      <div v-if="liveBrowserMismatch"
+                        class="absolute inset-0 z-[15] flex flex-col items-center justify-center gap-3 px-5 py-6 bg-black/60 dark:bg-black/70 backdrop-blur-md text-center">
+                        <UIcon name="i-lucide-monitor-smartphone" class="size-10 text-white/85 shrink-0" />
+                        <p class="text-sm font-medium text-white/95 max-w-[18rem] leading-snug">
+                          Live browser is tied to
+                          <span class="text-primary font-semibold">{{ streamingChatTitle }}</span>
+                          — not this thread.
+                        </p>
+                        <p class="text-xs text-white/65 max-w-[19rem] leading-relaxed">
+                          The sidebar can show a different chat than the one driving the agent. Open the live thread to
+                          align the transcript with what you see here.
+                        </p>
+                        <UButton color="primary" class="mt-1" @click="openLiveBrowserChat">
+                          Open live chat
+                        </UButton>
+                      </div>
+                      <div class="absolute bottom-2.5 left-2.5">
+                        <span v-if="screencast.isStreaming.value"
+                          class="flex items-center gap-1.5 text-[11px] bg-black/60 backdrop-blur-sm text-white/90 px-2.5 py-1 rounded-full">
+                          <span class="size-1.5 rounded-full bg-success animate-pulse" />
+                          Live
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- Agent: thinking + glass chat carousel -->
-                <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
-                  <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
-                    :status="currentStatus" :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
-                    :viewport-hidden="viewportHidden"
-                    @task-feedback-vote="onTaskFeedbackVote"
-                    @task-feedback-banner-entered="taskFeedbackBannerEntered = true"
-                    @toggle-viewport="viewportHidden = !viewportHidden" />
+                  <!-- Agent: thinking + glass chat carousel -->
+                  <div class="browser-grid__activity min-h-0 overflow-hidden min-w-0">
+                    <AgentActivity v-model:task-feedback-open="taskFeedbackOpen" :messages="currentMessages"
+                      :status="currentStatus" :is-agent-running="currentIsRunning"
+                      :is-connected="!!agent.sessionId.value" :viewport-hidden="viewportHidden"
+                      @task-feedback-vote="onTaskFeedbackVote"
+                      @task-feedback-banner-entered="taskFeedbackBannerEntered = true"
+                      @toggle-viewport="viewportHidden = !viewportHidden" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
+                <div class="w-full max-w-3xl">
+                  <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
+                    :survey-pending="taskFeedbackOpen" :survey-banner-visible="taskFeedbackBannerEntered"
+                    :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
+                    @stop="agent.stop" />
                 </div>
               </div>
             </div>
+          </Transition>
 
-            <div class="shrink-0 flex justify-center py-1.5 px-2 sm:px-4">
-              <div class="w-full max-w-3xl">
-                <ChatInput :is-agent-running="currentIsRunning" :is-connected="!!agent.sessionId.value"
-                  :survey-pending="taskFeedbackOpen"
-                  :survey-banner-visible="taskFeedbackBannerEntered"
-                  :input-locked="agent.isAgentRunning.value && !isViewingStreamingChat" @send="onSendInstruction"
-                  @stop="agent.stop" />
-              </div>
+          <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
+          <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
+            <div v-if="activeView === 'vault'" key="vault" class="absolute inset-0 w-full h-full">
+              <VaultPanel v-model:open="vaultOpenProxy" :sidebar-expanded="sidebarExpanded" class="h-full rounded-2xl"
+                @show-sidebar="sidebarExpanded = true" />
             </div>
-          </div>
-        </Transition>
+            <div v-else-if="activeView === 'dashboard'" key="dashboard" class="absolute inset-0 w-full h-full">
+              <DashboardPanel :workflows="wf.workflows.value" :pinned-ids="wf.pinnedIds.value"
+                :can-pin-more="wf.canPinMore.value" @open-workflow="onOpenWorkflowFromDashboard"
+                @create-workflow="onCreateWorkflowFromDashboard" @toggle-pin="onTogglePinWorkflow"
+                @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
+            </div>
+            <div v-else-if="activeView === 'authentications'" key="authentications"
+              class="absolute inset-0 w-full h-full">
+              <AuthenticationsPanel />
+            </div>
+            <div v-else-if="activeView === 'profile'" key="profile"
+              class="absolute inset-0 w-full h-full overflow-y-auto">
+              <ProfilePanel @back="activeView = null" />
+            </div>
+            <div v-else-if="activeWorkflowId !== null" :key="`workflow-${activeWorkflowId}`"
+              class="absolute inset-0 w-full h-full">
+              <WorkflowPanel :workflow-title="activeWorkflowTitle" />
+            </div>
+          </Transition>
+        </div>
+      </template>
+    </div>
+    <BugReportButton />
+    <LanguageSwitchPrompt />
 
-        <!-- Vertical carousel: one panel at a time, mode="out-in" for sequential slide -->
-        <Transition v-if="!isBrowserView" name="panel-carousel" mode="out-in">
-          <div v-if="activeView === 'vault'" key="vault" class="absolute inset-0 w-full h-full">
-            <VaultPanel v-model:open="vaultOpenProxy" :sidebar-expanded="sidebarExpanded" class="h-full rounded-2xl"
-              @show-sidebar="sidebarExpanded = true" />
-          </div>
-          <div v-else-if="activeView === 'dashboard'" key="dashboard" class="absolute inset-0 w-full h-full">
-            <DashboardPanel :workflows="wf.workflows.value" :pinned-ids="wf.pinnedIds.value"
-              :can-pin-more="wf.canPinMore.value" @open-workflow="onOpenWorkflowFromDashboard"
-              @create-workflow="onCreateWorkflowFromDashboard" @toggle-pin="onTogglePinWorkflow"
-              @rename-workflow="onRenameWorkflow" @delete-workflow="onDeleteWorkflow" />
-          </div>
-          <div v-else-if="activeView === 'authentications'" key="authentications"
-            class="absolute inset-0 w-full h-full">
-            <AuthenticationsPanel />
-          </div>
-          <div v-else-if="activeView === 'profile'" key="profile"
-            class="absolute inset-0 w-full h-full overflow-y-auto">
-            <ProfilePanel @back="activeView = null" />
-          </div>
-          <div v-else-if="activeWorkflowId !== null" :key="`workflow-${activeWorkflowId}`"
-            class="absolute inset-0 w-full h-full">
-            <WorkflowPanel :workflow-title="activeWorkflowTitle" />
-          </div>
-        </Transition>
-      </div>
-    </template>
-  </div>
-  <BugReportButton />
-  <LanguageSwitchPrompt />
-
-  <UModal
-    v-model:open="limitReachedOpen"
-    :ui="{
+    <UModal v-model:open="limitReachedOpen" :ui="{
       content: 'max-w-md',
       body: 'p-0 sm:p-0',
       header: 'hidden',
       footer: 'hidden',
-    }"
-  >
-    <template #body>
-      <div class="p-8 text-center glass-jelly border-0 rounded-3xl relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-        
-        <div class="relative z-10 space-y-5">
-          <div class="mx-auto size-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-[0_0_20px_rgba(var(--ui-color-primary-500),0.1)]">
-            <UIcon name="i-lucide-zap" class="size-8 text-primary" />
-          </div>
+    }">
+      <template #body>
+        <div class="p-8 text-center glass-jelly border-0 rounded-3xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-linear-to-b from-primary/5 to-transparent pointer-events-none" />
 
-          <div>
-            <h3 class="text-xl font-bold text-default tracking-tight">{{ t('limit_reached_title', 'Limit reached') }}</h3>
-            <p class="text-sm text-dimmed mt-2 leading-relaxed">
-              {{ settings.isLoggedIn.value 
-                ? t('limit_reached_pro', 'You have used all available requests for your current plan. Upgrade to a premium tier to continue browsing without limits.') 
-                : t('limit_reached_anon', 'Anonymous users are limited to 1 request. Sign in or create an account to get more requests and save your chat history.') 
-              }}
-            </p>
-          </div>
+          <div class="relative z-10 space-y-5">
+            <div
+              class="mx-auto size-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-[0_0_20px_rgba(var(--ui-color-primary-500),0.1)]">
+              <UIcon name="i-lucide-zap" class="size-8 text-primary" />
+            </div>
 
-          <div class="pt-2 flex flex-col gap-3">
-            <UButton
-              block
-              size="lg"
-              color="primary"
-              class="font-semibold shadow-lg shadow-primary/20"
-              @click="onSelectView('profile'); limitReachedOpen = false"
-            >
-              {{ settings.isLoggedIn.value ? 'Upgrade Plan' : 'Sign in / Sign up' }}
-            </UButton>
-            <UButton
-              block
-              size="lg"
-              variant="ghost"
-              color="neutral"
-              @click="limitReachedOpen = false"
-            >
-              Maybe later
-            </UButton>
+            <div>
+              <h3 class="text-xl font-bold text-default tracking-tight">{{ t('limit_reached_title', 'Limit reached') }}
+              </h3>
+                <p class="text-sm text-dimmed mt-2 leading-relaxed">
+                  {{ settings.isLoggedIn.value
+                    ? t("limit_reached_pro", "You have used all available requests for your current plan. Upgrade to a premium tier to continue browsing without limits.")
+                    : t("limit_reached_anon", "Anonymous users are limited to 1 request. Sign in or create an account to get more requests and save your chat history.")
+                  }}
+                </p>
+            </div>
+
+            <div class="pt-2 flex flex-col gap-3">
+              <UButton block size="lg" color="primary" class="font-semibold shadow-lg shadow-primary/20"
+                @click="onSelectView('profile'); limitReachedOpen = false">
+                {{ settings.isLoggedIn.value ? 'Upgrade Plan' : 'Sign in / Sign up' }}
+              </UButton>
+              <UButton block size="lg" variant="ghost" color="neutral" @click="limitReachedOpen = false">
+                Maybe later
+              </UButton>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
-  </UModal>
-</div>
+      </template>
+    </UModal>
+  </div>
 </template>
 
 <style scoped>
